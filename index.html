@@ -98,7 +98,7 @@
 
   /* ---- signature: elevation profile as the progress bar ---- */
   .profile { margin: 26px 0 8px; position: relative; }
-  .wp-hit { cursor: pointer; }
+  #elev-svg { cursor: crosshair; }
   .wp-tip {
     position: absolute; transform: translateX(-50%);
     background: var(--card); color: var(--ink);
@@ -669,10 +669,9 @@ function drawProfile(route, doneMi, totalMi, wps) {
 
   const wpTicks = (wps || []).map((w, i) => {
     const wx = x(w.pt).toFixed(1);
-    return `<g class="wp-hit" data-wp="${i}">` +
+    return `<g class="wp-mark" data-wp="${i}">` +
       `<line x1="${wx}" y1="${PAD}" x2="${wx}" y2="${H-PAD}" style="stroke:var(--contour)" stroke-width="1" opacity="0.3" vector-effect="non-scaling-stroke"/>` +
-      `<circle cx="${wx}" cy="${y(w.pt).toFixed(1)}" r="3" style="fill:var(--card);stroke:var(--contour)" stroke-width="1.5"/>` +
-      `<rect x="${(parseFloat(wx)-14).toFixed(1)}" y="0" width="28" height="${H}" fill="transparent" pointer-events="all"/></g>`;
+      `<circle cx="${wx}" cy="${y(w.pt).toFixed(1)}" r="3" style="fill:var(--card);stroke:var(--contour)" stroke-width="1.5"/></g>`;
   }).join("");
 
   svg.innerHTML = `
@@ -691,8 +690,9 @@ function drawProfile(route, doneMi, totalMi, wps) {
   attachWpTips(svg, wps || [], route.hasEle && !flat, totalMi);
 }
 
-// Hover (desktop) or tap (mobile) a waypoint hairline on the profile to
-// see its name, mile, and elevation in a small tooltip.
+// The whole profile is hover-aware: moving the pointer (or tapping)
+// anywhere along it highlights the nearest waypoint and shows its
+// name, mile, and elevation. No precise aim required.
 function attachWpTips(svg, wps, hasEle, totalMi) {
   if (!wps.length) return;
   const holder = svg.parentElement;
@@ -702,29 +702,41 @@ function attachWpTips(svg, wps, hasEle, totalMi) {
     tip.className = "wp-tip";
     holder.appendChild(tip);
   }
-  const show = g => {
-    const w = wps[+g.dataset.wp];
-    if (!w) return;
+  const marks = svg.querySelectorAll(".wp-mark");
+  const setHi = idx => {
+    marks.forEach((g, i) => {
+      g.querySelector("line").setAttribute("opacity", i === idx ? "0.9" : "0.3");
+      g.querySelector("circle").setAttribute("r", i === idx ? "4.5" : "3");
+    });
+  };
+  const hide = () => { tip.style.display = "none"; setHi(-1); };
+  const onPoint = clientX => {
+    const rect = svg.getBoundingClientRect();
+    const mi = ((clientX - rect.left) / rect.width) * totalMi;
+    const thresholdMi = (28 / rect.width) * totalMi; // ~28px reach
+    let best = -1, bestD = Infinity;
+    wps.forEach((w, i) => {
+      const d = Math.abs(w.pt.mi - mi);
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    if (best < 0 || bestD > Math.max(thresholdMi, totalMi * 0.03)) { hide(); return; }
+    const w = wps[best];
     tip.textContent = w.name + " \u00b7 mi " + w.mi +
       (hasEle ? " \u00b7 " + Math.round(w.pt.ele * 3.28084).toLocaleString() + " ft" : "");
-    const rect = svg.getBoundingClientRect();
     const hold = holder.getBoundingClientRect();
     let left = (rect.left - hold.left) + (w.pt.mi / totalMi) * rect.width;
     left = Math.min(Math.max(left, 80), hold.width - 80);
     tip.style.left = left + "px";
     tip.style.top = (rect.top - hold.top + 2) + "px";
     tip.style.display = "block";
+    setHi(best);
   };
-  const hide = () => { tip.style.display = "none"; };
-  svg.addEventListener("mouseover", e => {
-    const g = e.target.closest(".wp-hit");
-    if (g) show(g); else hide();
-  });
+  svg.addEventListener("mousemove", e => onPoint(e.clientX));
   svg.addEventListener("mouseleave", hide);
-  svg.addEventListener("click", e => {
-    const g = e.target.closest(".wp-hit");
-    if (g) show(g); else hide();
-  });
+  svg.addEventListener("click", e => onPoint(e.clientX));
+  svg.addEventListener("touchstart", e => {
+    if (e.touches.length) onPoint(e.touches[0].clientX);
+  }, { passive: true });
 }
 
 function themeColor(name) {
