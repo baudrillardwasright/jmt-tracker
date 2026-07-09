@@ -54,5 +54,12 @@
     "lon": -90.07491,
     "type": "checkin",
     "text": ""
+  },
+  {
+    "time": "2026-07-09T06:35:09.922Z",
+    "lat": 29.93293,
+    "lon": -90.07491,
+    "type": "message",
+    "text": "Test message checking in"
   }
 ]
