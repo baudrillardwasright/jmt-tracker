@@ -33,5 +33,12 @@
     "lon": -119.11061,
     "type": "message",
     "text": "DEMO - Long day. Feet fine, appetite enormous."
+  },
+  {
+    "time": "2026-07-09T04:10:13.497Z",
+    "lat": 37.78496,
+    "lon": -119.55296,
+    "type": "message",
+    "text": "I'm OK. My location is 37.78496111493226, -119.5529601880258."
   }
 ]
