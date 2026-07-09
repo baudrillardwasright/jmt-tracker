@@ -680,21 +680,22 @@ function drawProfile(route, doneMi, totalMi, wps) {
     <path d="${area}" style="fill:var(--prof-done)" clip-path="url(#doneclip)"/>
     <polyline points="${line}" fill="none" style="stroke:var(--contour)" stroke-width="2" vector-effect="non-scaling-stroke"/>
     ${wpTicks}
-    ${doneMi > 0 ? `<line x1="${doneW.toFixed(1)}" y1="${PAD}" x2="${doneW.toFixed(1)}" y2="${H-PAD}" style="stroke:var(--rust)" stroke-width="1.5" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>
-    <circle cx="${x(curPt).toFixed(1)}" cy="${y(curPt).toFixed(1)}" r="5" style="fill:var(--rust);stroke:var(--paper)" stroke-width="2"/>` : ""}
+    ${doneMi > 0 ? `<g class="cur-mark"><line x1="${doneW.toFixed(1)}" y1="${PAD}" x2="${doneW.toFixed(1)}" y2="${H-PAD}" style="stroke:var(--rust)" stroke-width="1.5" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>
+    <circle cx="${x(curPt).toFixed(1)}" cy="${y(curPt).toFixed(1)}" r="5" style="fill:var(--rust);stroke:var(--paper)" stroke-width="2"/></g>` : ""}
   `;
   if (!flat && isFinite(lo) && isFinite(hi)) {
     $("cap-elev").textContent = Math.round(lo * 3.28084).toLocaleString() + "–" +
                                 Math.round(hi * 3.28084).toLocaleString() + " ft";
   }
-  attachWpTips(svg, wps || [], route.hasEle && !flat, totalMi);
+  attachWpTips(svg, wps || [], route.hasEle && !flat, totalMi,
+    doneMi > 0 ? { mi: doneMi, ele: curPt.ele } : null);
 }
 
 // The whole profile is hover-aware: moving the pointer (or tapping)
 // anywhere along it highlights the nearest waypoint and shows its
 // name, mile, and elevation. No precise aim required.
-function attachWpTips(svg, wps, hasEle, totalMi) {
-  if (!wps.length) return;
+function attachWpTips(svg, wps, hasEle, totalMi, cur) {
+  if (!wps.length && !cur) return;
   const holder = svg.parentElement;
   let tip = holder.querySelector(".wp-tip");
   if (!tip) {
@@ -703,33 +704,48 @@ function attachWpTips(svg, wps, hasEle, totalMi) {
     holder.appendChild(tip);
   }
   const marks = svg.querySelectorAll(".wp-mark");
+  const curMark = svg.querySelector(".cur-mark");
   const setHi = idx => {
     marks.forEach((g, i) => {
       g.querySelector("line").setAttribute("opacity", i === idx ? "0.9" : "0.3");
       g.querySelector("circle").setAttribute("r", i === idx ? "4.5" : "3");
     });
+    if (curMark) curMark.querySelector("circle").setAttribute("r", idx === -2 ? "7" : "5");
   };
   const hide = () => { tip.style.display = "none"; setHi(-1); };
+  const place = (mi, text, idx) => {
+    tip.textContent = text;
+    const rect = svg.getBoundingClientRect();
+    const hold = holder.getBoundingClientRect();
+    let left = (rect.left - hold.left) + (mi / totalMi) * rect.width;
+    left = Math.min(Math.max(left, 80), hold.width - 80);
+    tip.style.left = left + "px";
+    tip.style.top = (rect.top - hold.top + 2) + "px";
+    tip.style.display = "block";
+    setHi(idx);
+  };
   const onPoint = clientX => {
     const rect = svg.getBoundingClientRect();
     const mi = ((clientX - rect.left) / rect.width) * totalMi;
-    const thresholdMi = (28 / rect.width) * totalMi; // ~28px reach
+    const reach = Math.max((28 / rect.width) * totalMi, totalMi * 0.03);
     let best = -1, bestD = Infinity;
     wps.forEach((w, i) => {
       const d = Math.abs(w.pt.mi - mi);
       if (d < bestD) { bestD = d; best = i; }
     });
-    if (best < 0 || bestD > Math.max(thresholdMi, totalMi * 0.03)) { hide(); return; }
+    // the current-position marker competes too, and wins ties
+    if (cur && Math.abs(cur.mi - mi) <= bestD) {
+      const d = Math.abs(cur.mi - mi);
+      if (d <= reach) {
+        place(cur.mi, "Current position \u00b7 mi " + cur.mi.toFixed(1) +
+          (hasEle ? " \u00b7 " + Math.round(cur.ele * 3.28084).toLocaleString() + " ft" : ""), -2);
+        return;
+      }
+    }
+    if (best < 0 || bestD > reach) { hide(); return; }
     const w = wps[best];
-    tip.textContent = w.name + " \u00b7 mi " + w.mi +
-      (hasEle ? " \u00b7 " + Math.round(w.pt.ele * 3.28084).toLocaleString() + " ft" : "");
-    const hold = holder.getBoundingClientRect();
-    let left = (rect.left - hold.left) + (w.pt.mi / totalMi) * rect.width;
-    left = Math.min(Math.max(left, 80), hold.width - 80);
-    tip.style.left = left + "px";
-    tip.style.top = (rect.top - hold.top + 2) + "px";
-    tip.style.display = "block";
-    setHi(best);
+    place(w.pt.mi, w.name + " \u00b7 mi " + w.mi +
+      (hasEle ? " \u00b7 " + Math.round(w.pt.ele * 3.28084).toLocaleString() + " ft" : ""), best);
   };
   svg.addEventListener("mousemove", e => onPoint(e.clientX));
   svg.addEventListener("mouseleave", hide);
