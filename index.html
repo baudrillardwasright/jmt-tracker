@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>John Muir Trail — Field Log</title>
+<meta name="description" content="Live progress log from the John Muir Trail, updated by satellite check-in.">
+<meta property="og:title" content="John Muir Trail — Field Log">
+<meta property="og:description" content="Live position, progress, and messages from the trail, sent by satellite.">
+<meta property="og:type" content="website">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F2F3EC">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#171B15">
+<meta name="apple-mobile-web-app-title" content="JMT Tracker">
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --paper:   #F2F3EC;
+    --ink:     #22301F;
+    --faded:   #5C6657;
+    --contour: #8A6F4D;
+    --lake:    #33688F;
+    --rust:    #B14A22;
+    --line:    #D9DACD;
+    --card:    #FBFBF7;
+    --prof-bg:   #E4E2D3;
+    --prof-done: #C7A97E;
+    --good:      #3d6b3d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:   #171B15;
+      --ink:     #E7EAE0;
+      --faded:   #9AA394;
+      --contour: #BC9E6E;
+      --lake:    #7FABD1;
+      --rust:    #D87C55;
+      --line:    #333A31;
+      --card:    #20261F;
+      --prof-bg:   #262C24;
+      --prof-done: #8A6F4D;
+      --good:      #8FBF8F;
+    }
+    #map { background: #20261F; }
+    .leaflet-tile { filter: brightness(0.82) saturate(0.9); }
+  }
+  /* Leaflet popups follow the theme */
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+    background: var(--card); color: var(--ink);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 16px 64px; }
+
+  h1, h2 { font-family: "Bricolage Grotesque", sans-serif; }
+  .mono { font-family: "IBM Plex Mono", monospace; }
+
+  /* ---- masthead, set like a map legend ---- */
+  header { padding: 28px 0 18px; border-bottom: 2px solid var(--ink); }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--contour);
+  }
+  h1 {
+    font-size: clamp(30px, 7vw, 52px);
+    font-weight: 800; line-height: 1.02; letter-spacing: -0.01em;
+    margin: 6px 0 10px;
+  }
+  .statusline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .ok-badge {
+    font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 500;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 3px 10px; border: 1.5px solid var(--ink); border-radius: 999px;
+    background: var(--card);
+  }
+  .ok-badge.stale { border-color: var(--contour); color: var(--contour); }
+  .statusline .detail { color: var(--faded); font-size: 15px; }
+
+  /* ---- notice banner (missing files / preview mode) ---- */
+  .banner {
+    margin-top: 16px; padding: 10px 14px;
+    border: 1.5px dashed var(--contour); background: var(--card);
+    font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--contour);
+  }
+
+  /* ---- signature: elevation profile as the progress bar ---- */
+  .profile { margin: 26px 0 8px; }
+  .profile-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .profile-head .pct {
+    font-family: "Bricolage Grotesque", sans-serif; font-weight: 800;
+    font-size: clamp(26px, 5vw, 36px); line-height: 1;
+  }
+  .profile-head .pct small { font-size: 0.5em; font-weight: 600; color: var(--faded); }
+  .profile-head .miles { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--faded); text-align: right; }
+  #elev-svg { width: 100%; height: auto; display: block; }
+  .profile-caption {
+    display: flex; justify-content: space-between;
+    font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--faded);
+    margin-top: 2px;
+  }
+
+  /* ---- map ---- */
+  #map {
+    height: 58vh; min-height: 340px;
+    border: 1.5px solid var(--ink);
+    margin: 22px 0 8px;
+    background: #e8e6da;
+  }
+  .map-note { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--faded); margin-bottom: 26px; }
+  .cur-dot {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--rust); border: 2.5px solid #fff;
+    box-shadow: 0 0 0 2px var(--rust);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .cur-dot { animation: pulse 2.2s ease-out infinite; }
+    @keyframes pulse {
+      0%   { box-shadow: 0 0 0 2px var(--rust), 0 0 0 0 rgba(177,74,34,0.45); }
+      70%  { box-shadow: 0 0 0 2px var(--rust), 0 0 0 14px rgba(177,74,34,0); }
+      100% { box-shadow: 0 0 0 2px var(--rust), 0 0 0 0 rgba(177,74,34,0); }
+    }
+  }
+
+  /* ---- stats strip ---- */
+  .stats {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+    border: 1.5px solid var(--ink); background: var(--line);
+  }
+  .stat { padding: 12px 14px; background: var(--card); }
+  .stat .num { font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: clamp(19px, 4vw, 26px); line-height: 1.1; white-space: nowrap; }
+  .stat .lbl { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faded); margin-top: 2px; }
+  @media (max-width: 560px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+
+  .up { color: var(--good); }
+  .down { color: var(--rust); }
+
+  /* ---- next waypoint strip ---- */
+  .next-up {
+    margin-top: 10px; padding: 8px 12px;
+    border: 1.5px solid var(--ink); background: var(--card);
+    font-family: "IBM Plex Mono", monospace; font-size: 12.5px; line-height: 1.6;
+  }
+  .next-up .wp { font-weight: 500; }
+  .next-up .then { color: var(--faded); }
+
+  /* ---- weather cells ---- */
+  .wx {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+    border: 1.5px solid var(--ink); background: var(--line);
+  }
+  .wx-day { background: var(--card); padding: 10px 12px; font-family: "IBM Plex Mono", monospace; }
+  .wx-day .d { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faded); }
+  .wx-day .c { font-family: "Bricolage Grotesque", sans-serif; font-weight: 600; font-size: 15px; margin: 2px 0; }
+  .wx-day .t { font-size: 13px; }
+  .wx-day .m { font-size: 11px; color: var(--faded); margin-top: 2px; }
+  @media (max-width: 560px) { .wx { grid-template-columns: repeat(2, 1fr); } #map { height: 52vh; } }
+  .wx-note { font-size: 13px; color: var(--faded); margin-top: 10px; }
+
+  /* ---- day headers inside the message log ---- */
+  .day-head {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline;
+    gap: 2px 14px; margin: 30px 0 2px; padding-bottom: 5px;
+    border-bottom: 1.5px solid var(--ink);
+    font-family: "IBM Plex Mono", monospace; font-size: 11.5px;
+  }
+  .day-head:first-child { margin-top: 0; }
+  .day-head .day-id { font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; }
+  .day-head .day-stats { color: var(--faded); }
+  .log-note { font-size: 13px; color: var(--faded); margin-top: 16px; }
+
+  /* ---- sections ---- */
+  section { margin-top: 44px; }
+  h2 {
+    font-size: 15px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+    border-bottom: 1.5px solid var(--ink); padding-bottom: 6px; margin-bottom: 16px;
+  }
+
+  /* ---- message log ---- */
+  .msg { display: grid; grid-template-columns: 118px 1fr; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .msg .when { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--faded); line-height: 1.7; }
+  .msg .when .mi { color: var(--contour); }
+  .msg .text { font-size: 16px; }
+  .msg .text .checkin-flag { color: var(--faded); font-style: italic; }
+  .msg.latest { background: var(--card); outline: 1.5px solid var(--ink); padding: 14px; margin: 0 -14px 6px; }
+  @media (max-width: 560px) {
+    .msg { grid-template-columns: 1fr; gap: 4px; }
+    .msg .when { display: flex; gap: 12px; }
+  }
+
+
+  footer { margin-top: 56px; padding-top: 14px; border-top: 2px solid var(--ink); font-size: 13.5px; color: var(--faded); }
+  footer a { color: var(--lake); }
+  .hidden { display: none; }
+  .empty-note { color: var(--faded); font-style: italic; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow" id="eyebrow">Field log · Satellite check-in</div>
+    <h1 id="trail-title">John Muir Trail</h1>
+    <div class="statusline">
+      <span class="ok-badge" id="ok-badge">Awaiting first check-in</span>
+      <span class="detail" id="status-detail"></span>
+    </div>
+    <div class="banner hidden" id="banner"></div>
+  </header>
+
+  <div class="profile" id="profile-block">
+    <div class="profile-head">
+      <div class="pct"><span id="pct">0</span><small>%</small></div>
+      <div class="miles" id="miles-line">— of — mi</div>
+    </div>
+    <svg id="elev-svg" viewBox="0 0 1000 150" preserveAspectRatio="none" role="img" aria-label="Elevation profile of the route with progress shaded"></svg>
+    <div class="profile-caption">
+      <span id="cap-start">start</span>
+      <span id="cap-elev"></span>
+      <span id="cap-end">finish</span>
+    </div>
+    <div class="next-up hidden" id="next-up"></div>
+  </div>
+
+  <div id="map"></div>
+  <div class="map-note">Dashed line: planned route · Solid line: actual check-ins · <span style="color:var(--rust)">●</span> last known position</div>
+
+  <div class="stats">
+    <div class="stat"><div class="num" id="st-miles">—</div><div class="lbl">Trail miles</div></div>
+    <div class="stat"><div class="num" id="st-days">—</div><div class="lbl">Days on trail</div></div>
+    <div class="stat"><div class="num" id="st-pace">—</div><div class="lbl">Mi / day</div></div>
+    <div class="stat"><div class="num" id="st-gain">—</div><div class="lbl">Ft climbed</div></div>
+    <div class="stat"><div class="num" id="st-last">—</div><div class="lbl">Last check-in</div></div>
+    <div class="stat"><div class="num" id="st-finish">—</div><div class="lbl">Proj. finish</div></div>
+  </div>
+
+  <section id="weather-section" class="hidden">
+    <h2>Forecast at last position</h2>
+    <div class="wx" id="wx"></div>
+    <p class="wx-note">Forecast from Open-Meteo for the last check-in's coordinates and elevation. Mountain weather changes faster than any forecast — treat this as a rough guide.</p>
+  </section>
+
+  <section id="log-section">
+    <h2>Messages from the trail</h2>
+    <div id="log"><p class="empty-note">Nothing yet. Messages sent from the satellite device will appear here.</p></div>
+    <p class="log-note hidden" id="log-note">Daily figures are estimates from satellite check-ins snapped to the route: miles are camp-to-camp along the trail, gain and loss come from the route's elevation profile, and hours run from the day's first to last check-in — days with a single check-in show no hours.</p>
+  </section>
+
+
+  <footer>
+    <p>Positions are sent from a ZOLEO satellite communicator, so updates arrive only when a check-in is sent — gaps of a day or more are normal and expected. This page updates itself; nobody is typing these in. Map data © <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a> contributors, tiles by <a href="https://opentopomap.org" rel="noopener">OpenTopoMap</a>.</p>
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+/* ================= CONFIG — edit these ================= */
+const CONFIG = {
+  trailName:   "John Muir Trail",
+  hikerName:   "",                    // optional, e.g. "Sam" → shown in the eyebrow
+  startLabel:  "Tuolumne Meadows",    // caption under the elevation profile
+  endLabel:    "Whitney Portal",
+  startDate:   "",                    // optional "YYYY-MM-DD"; blank = date of first check-in
+  timeZone:    "America/Los_Angeles", // trail timezone; days split at this midnight
+  routeFile:   "route.gpx",           // your planned route, in this repo
+  checkinsFile:"checkins.json",       // written by the email parser
+  offRouteMi:  6,                     // beyond this distance from the route, progress isn't advanced
+  staleHours:  48,                    // after this, badge softens to "no recent check-in"
+  // Named points along the route, by trail mile measured along route.gpx.
+  // These were measured directly on your onX export (Tuolumne Meadows ->
+  // Whitney Portal, 212.4 mi, including the Onion Valley resupply detour).
+  // "VVR turnoff" is approximate - verify against your maps.
+  waypoints: [
+    { name: "Donohue Pass",         mi: 13.9 },
+    { name: "Thousand Island Lake", mi: 20.0 },
+    { name: "Red's Meadow",         mi: 36.4 },
+    { name: "VVR turnoff",          mi: 66 },
+    { name: "Muir Trail Ranch",     mi: 85.1 },
+    { name: "Muir Pass",            mi: 106.2 },
+    { name: "Mather Pass",          mi: 131.0 },
+    { name: "Pinchot Pass",         mi: 137.7 },
+    { name: "Glen Pass",            mi: 153.8 },
+    { name: "Kearsarge junction",   mi: 157.1 },
+    { name: "Onion Valley (resupply)", mi: 163.7 },
+    { name: "Forester Pass",        mi: 181.1 },
+    { name: "Mt. Whitney summit",   mi: 201.9 },
+    { name: "Whitney Portal",       mi: 212.3 }
+  ]
+};
+/* ======================================================== */
+
+// Shown only when checkins.json can't be loaded at all (e.g. previewing
+// this file outside GitHub Pages), so the page demonstrates itself
+// instead of sitting blank.
+const DEMO_CHECKINS = [
+  {"time": "2026-07-06T15:00:00Z", "lat": 37.87042, "lon": -119.37071, "type": "message", "text": "DEMO - Rolling out of Tuolumne down Lyell Canyon."},
+  {"time": "2026-07-07T02:00:00Z", "lat": 37.79627, "lon": -119.2625, "type": "checkin", "text": ""},
+  {"time": "2026-07-07T14:30:00Z", "lat": 37.77763, "lon": -119.26203, "type": "checkin", "text": ""},
+  {"time": "2026-07-08T02:30:00Z", "lat": 37.73034, "lon": -119.17785, "type": "message", "text": "DEMO - Camped at Thousand Island Lake. Banner Peak showing off."},
+  {"time": "2026-07-09T01:30:00Z", "lat": 37.67155, "lon": -119.11061, "type": "message", "text": "DEMO - Long day. Feet fine, appetite enormous."}
+];
+
+const $ = id => document.getElementById(id);
+const MI = 3958.7613; // earth radius, miles
+
+function hav(lat1, lon1, lat2, lon2) {
+  const r = Math.PI / 180;
+  const dLat = (lat2 - lat1) * r, dLon = (lon2 - lon1) * r;
+  const a = Math.sin(dLat/2)**2 +
+            Math.cos(lat1*r) * Math.cos(lat2*r) * Math.sin(dLon/2)**2;
+  return 2 * MI * Math.asin(Math.sqrt(a));
+}
+
+function relTime(d) {
+  const s = (Date.now() - d.getTime()) / 1000;
+  if (s < 90) return "just now";
+  if (s < 5400) return Math.round(s/60) + "m ago";
+  if (s < 129600) return Math.round(s/3600) + "h ago";
+  return Math.round(s/86400) + "d ago";
+}
+
+function fmtWhen(d) {
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " · " +
+         d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+function showBanner(msg) {
+  const b = $("banner");
+  b.textContent = msg;
+  b.classList.remove("hidden");
+}
+
+// onX and some other apps export GPX without <ele> tags. When that happens,
+// fetch elevations for a sample of the route from Open-Meteo's free
+// elevation API and interpolate between samples.
+async function addElevations(pts) {
+  try {
+    const N = Math.min(600, pts.length);
+    const step = Math.max(1, Math.floor(pts.length / N));
+    const idxs = [];
+    for (let i = 0; i < pts.length; i += step) idxs.push(i);
+    if (idxs[idxs.length - 1] !== pts.length - 1) idxs.push(pts.length - 1);
+    for (let b = 0; b < idxs.length; b += 100) {
+      const chunk = idxs.slice(b, b + 100);
+      const url = "https://api.open-meteo.com/v1/elevation" +
+        "?latitude=" + chunk.map(i => pts[i].lat.toFixed(5)).join(",") +
+        "&longitude=" + chunk.map(i => pts[i].lon.toFixed(5)).join(",");
+      const res = await fetch(url);
+      const ele = (await res.json()).elevation;
+      if (!Array.isArray(ele)) throw new Error("bad elevation response");
+      chunk.forEach((pi, j) => { pts[pi].ele = ele[j]; });
+    }
+    for (let k = 0; k < idxs.length - 1; k++) {
+      const a = idxs[k], b = idxs[k + 1];
+      for (let i = a + 1; i < b; i++) {
+        const t = (pts[i].mi - pts[a].mi) / Math.max(1e-9, pts[b].mi - pts[a].mi);
+        pts[i].ele = pts[a].ele + t * (pts[b].ele - pts[a].ele);
+      }
+    }
+  } catch (e) {
+    console.warn("Elevation lookup failed; profile will render flat:", e);
+  }
+}
+
+async function loadRoute() {
+  const res = await fetch(CONFIG.routeFile + "?t=" + Date.now(), { cache: "no-store" });
+  if (!res.ok) throw new Error("route fetch failed");
+  const xml = new DOMParser().parseFromString(await res.text(), "application/xml");
+  let nodes = [...xml.getElementsByTagName("trkpt")];
+  if (!nodes.length) nodes = [...xml.getElementsByTagName("rtept")];
+  const pts = nodes.map(n => ({
+    lat: parseFloat(n.getAttribute("lat")),
+    lon: parseFloat(n.getAttribute("lon")),
+    ele: parseFloat(n.getElementsByTagName("ele")[0]?.textContent || "0")
+  })).filter(p => isFinite(p.lat) && isFinite(p.lon));
+  if (pts.length < 2) throw new Error("no track points");
+  let cum = 0;
+  pts.forEach((p, i) => {
+    if (i > 0) cum += hav(pts[i-1].lat, pts[i-1].lon, p.lat, p.lon);
+    p.mi = cum;
+  });
+  if (!pts.some(p => p.ele > 1)) await addElevations(pts);
+  pts.hasEle = pts.some(p => p.ele > 1);
+  return pts;
+}
+
+// returns { ok, list } — ok=false means the file couldn't be fetched at all
+async function loadCheckins() {
+  try {
+    const res = await fetch(CONFIG.checkinsFile + "?t=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) return { ok: false, list: [] };
+    const data = await res.json();
+    const list = (Array.isArray(data) ? data : [])
+      .filter(c => isFinite(c.lat) && isFinite(c.lon) && c.time)
+      .map(c => ({ ...c, date: new Date(c.time) }))
+      .sort((a, b) => a.date - b.date);
+    return { ok: true, list };
+  } catch (e) { return { ok: false, list: [] }; }
+}
+
+// nearest route point → { mi, offMi, idx }
+function snap(route, lat, lon) {
+  let best = Infinity, bestIdx = 0;
+  for (let i = 0; i < route.length; i++) {
+    const d = hav(lat, lon, route[i].lat, route[i].lon);
+    if (d < best) { best = d; bestIdx = i; }
+  }
+  return { mi: route[bestIdx].mi, offMi: best, idx: bestIdx };
+}
+
+// Snap every check-in in chronological order, never looking more than
+// ~3 miles behind the furthest confirmed position. This matters where the
+// route doubles back on itself (the Onion Valley resupply out-and-back):
+// plain nearest-point snapping would match a return-leg position to the
+// outbound leg and freeze progress. Attaches the result as c.s.
+function snapAll(route, checkins) {
+  let floorIdx = 0;
+  checkins.forEach(c => {
+    let startIdx = floorIdx;
+    const floorMi = route[floorIdx].mi - 3;
+    while (startIdx > 0 && route[startIdx].mi > floorMi) startIdx--;
+    let best = Infinity, bestIdx = startIdx;
+    for (let i = startIdx; i < route.length; i++) {
+      const d = hav(c.lat, c.lon, route[i].lat, route[i].lon);
+      if (d < best) { best = d; bestIdx = i; }
+    }
+    c.s = { mi: route[bestIdx].mi, offMi: best, idx: bestIdx };
+    if (best <= CONFIG.offRouteMi && bestIdx > floorIdx) floorIdx = bestIdx;
+  });
+}
+
+// Elevation gain/loss (feet) along the route between two indices.
+// A 5 m hysteresis threshold filters GPS elevation noise, which would
+// otherwise inflate the totals badly.
+function routeGainLoss(route, i0, i1) {
+  const a = Math.min(i0, i1), b = Math.max(i0, i1);
+  let gain = 0, loss = 0, ref = route[a].ele;
+  for (let i = a + 1; i <= b; i++) {
+    const d = route[i].ele - ref;
+    if (d >= 5)      { gain += d; ref = route[i].ele; }
+    else if (d <= -5){ loss -= d; ref = route[i].ele; }
+  }
+  if (i1 < i0) { const t = gain; gain = loss; loss = t; } // traveled in reverse
+  return { gainFt: gain * 3.28084, lossFt: loss * 3.28084 };
+}
+
+// "YYYY-MM-DD" in the trail's timezone — days split at trail midnight
+function dayKey(date) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: CONFIG.timeZone, year: "numeric", month: "2-digit", day: "2-digit"
+  }).format(date);
+}
+
+// route point nearest to a given trail mile
+function pointAtMile(route, mi) {
+  let lo = 0, hi = route.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (route[mid].mi < mi) lo = mid + 1; else hi = mid;
+  }
+  return route[lo];
+}
+
+// waypoints that fit within this route, each with its map position
+function usableWaypoints(route, totalMi) {
+  return (CONFIG.waypoints || [])
+    .filter(w => isFinite(w.mi) && w.mi >= 0 && w.mi <= totalMi + 0.5)
+    .sort((a, b) => a.mi - b.mi)
+    .map(w => ({ ...w, pt: pointAtMile(route, Math.min(w.mi, totalMi)) }));
+}
+
+function renderNextUp(wps, doneMi, pace) {
+  const ahead = wps.filter(w => w.mi > doneMi + 0.2);
+  const el = $("next-up");
+  if (!ahead.length) {
+    el.innerHTML = "Final stretch \u2014 no waypoints ahead.";
+    el.classList.remove("hidden");
+    return;
+  }
+  const fmt = w => {
+    const d = w.mi - doneMi;
+    const eta = pace > 0 ? ` (~${(d / pace).toFixed(1)} d)` : "";
+    return `<span class="wp">${escapeHtml(w.name)}</span> in ${d.toFixed(1)} mi${eta}`;
+  };
+  let html = "Next: " + fmt(ahead[0]);
+  if (ahead[1]) html += ` <span class="then">\u00b7 then ${escapeHtml(ahead[1].name)} at mi ${ahead[1].mi}</span>`;
+  el.innerHTML = html;
+  el.classList.remove("hidden");
+}
+
+const WMO = [
+  [[0], "Clear"], [[1, 2], "Partly cloudy"], [[3], "Overcast"],
+  [[45, 48], "Fog"], [[51, 53, 55, 56, 57], "Drizzle"],
+  [[61, 63, 65, 66, 67, 80, 81, 82], "Rain"],
+  [[71, 73, 75, 77, 85, 86], "Snow"], [[95, 96, 99], "Thunderstorm"]
+];
+const wmoText = code => (WMO.find(([codes]) => codes.includes(code)) || [, "\u2014"])[1];
+
+async function loadWeather(lat, lon, eleMeters) {
+  try {
+    let url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat +
+      "&longitude=" + lon +
+      "&daily=weather_code,temperature_2m_max,temperature_2m_min," +
+      "precipitation_probability_max,wind_speed_10m_max" +
+      "&temperature_unit=fahrenheit&wind_speed_unit=mph" +
+      "&forecast_days=4&timezone=" + encodeURIComponent(CONFIG.timeZone);
+    if (isFinite(eleMeters) && eleMeters > 0) url += "&elevation=" + Math.round(eleMeters);
+    const res = await fetch(url);
+    const d = (await res.json())?.daily;
+    if (!d?.time?.length) return;
+    const grid = $("wx");
+    d.time.forEach((t, i) => {
+      const day = new Date(t + "T12:00:00");
+      const cell = document.createElement("div");
+      cell.className = "wx-day";
+      cell.innerHTML =
+        `<div class="d">${i === 0 ? "Today" : day.toLocaleDateString(undefined, { weekday: "short", month: "numeric", day: "numeric" })}</div>` +
+        `<div class="c">${wmoText(d.weather_code[i])}</div>` +
+        `<div class="t">${Math.round(d.temperature_2m_max[i])}\u00b0 / ${Math.round(d.temperature_2m_min[i])}\u00b0</div>` +
+        `<div class="m">precip ${d.precipitation_probability_max[i] ?? 0}% \u00b7 wind ${Math.round(d.wind_speed_10m_max[i])} mph</div>`;
+      grid.appendChild(cell);
+    });
+    $("weather-section").classList.remove("hidden");
+  } catch (e) { console.warn("Weather lookup failed (blocked network or Open-Meteo unreachable):", e); }
+}
+
+// Per calendar day: miles covered (previous day's last position → this
+// day's last position, along the route), gain/loss over that stretch,
+// and hours from the day's first to last check-in.
+function buildDaily(checkins, route) {
+  const days = new Map(); // key → { entries: [], snapped: [] }
+  checkins.forEach(c => {
+    const k = dayKey(c.date);
+    if (!days.has(k)) days.set(k, { entries: [], snapped: [] });
+    const d = days.get(k);
+    d.entries.push(c);
+    if (c.s && c.s.offMi <= CONFIG.offRouteMi) d.snapped.push(c.s);
+  });
+
+  const keys = [...days.keys()].sort();
+  const startKey = CONFIG.startDate || keys[0];
+  const rows = [];
+  let prevSnap = null; // last on-route position of the previous day
+
+  for (const k of keys) {
+    const d = days.get(k);
+    const first = d.entries[0].date, last = d.entries[d.entries.length - 1].date;
+    const hours = d.entries.length >= 2 ? (last - first) / 36e5 : null;
+
+    let miles = null, gainFt = null, lossFt = null;
+    if (d.snapped.length) {
+      const from = prevSnap || d.snapped[0];
+      const to = d.snapped[d.snapped.length - 1];
+      miles = Math.abs(to.mi - from.mi);
+      if (route.hasEle) {
+        const gl = routeGainLoss(route, from.idx, to.idx);
+        gainFt = gl.gainFt; lossFt = gl.lossFt;
+      }
+      prevSnap = to;
+    }
+    const dayNum = Math.round((new Date(k) - new Date(startKey)) / 864e5) + 1;
+    rows.push({ key: k, dayNum, miles, gainFt, lossFt, hours });
+  }
+  return rows;
+}
+
+function renderDayHead(k, dayNum, row) {
+  const head = document.createElement("div");
+  head.className = "day-head";
+  const dateTxt = new Date(k + "T12:00:00").toLocaleDateString(undefined,
+    { month: "short", day: "numeric" });
+  let stats = "";
+  if (row) {
+    const parts = [];
+    if (row.miles !== null) parts.push(row.miles.toFixed(1) + " mi");
+    if (row.gainFt !== null) parts.push(
+      '<span class="up">+' + Math.round(row.gainFt).toLocaleString() + '</span>/' +
+      '<span class="down">\u2212' + Math.round(row.lossFt).toLocaleString() + "</span> ft");
+    if (row.hours !== null) parts.push(row.hours.toFixed(1) + " h");
+    if (parts.length) stats = '<span class="day-stats">' + parts.join(" \u00b7 ") + "</span>";
+  }
+  head.innerHTML = `<span class="day-id">Day ${dayNum} \u00b7 ${dateTxt}</span>${stats}`;
+  return head;
+}
+
+function renderLog(checkins, route) {
+  if (!checkins.length) return;
+  const log = $("log");
+  log.innerHTML = "";
+
+  // daily stats, when a route is available to measure against
+  const rowByKey = new Map();
+  if (route) buildDaily(checkins, route).forEach(r => rowByKey.set(r.key, r));
+
+  // group check-ins by trail-timezone day
+  const groups = new Map();
+  checkins.forEach(c => {
+    const k = dayKey(c.date);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(c);
+  });
+  const keysAsc = [...groups.keys()].sort();
+  const startKey = CONFIG.startDate || keysAsc[0];
+
+  let isFirstMsg = true;
+  for (const k of [...keysAsc].reverse()) {
+    const row = rowByKey.get(k);
+    const dayNum = row ? row.dayNum
+      : Math.round((new Date(k) - new Date(startKey)) / 864e5) + 1;
+    log.appendChild(renderDayHead(k, dayNum, row));
+
+    [...groups.get(k)].reverse().forEach(c => {
+      const div = document.createElement("div");
+      div.className = "msg" + (isFirstMsg ? " latest" : "");
+      isFirstMsg = false;
+      let miLine = "";
+      if (route && c.s) {
+        const miTxt = c.s.offMi <= CONFIG.offRouteMi ? `mi ${c.s.mi.toFixed(1)}` : "off route";
+        miLine = `<br><span class="mi">${miTxt}</span>`;
+      }
+      div.innerHTML =
+        `<div class="when">${fmtWhen(c.date)}${miLine}</div>` +
+        `<div class="text">${c.text ? escapeHtml(c.text) : '<span class="checkin-flag">Checked in \u2014 OK</span>'}</div>`;
+      log.appendChild(div);
+    });
+  }
+  if (route) $("log-note").classList.remove("hidden");
+}
+
+function drawProfile(route, doneMi, totalMi, wps) {
+  const svg = $("elev-svg");
+  const W = 1000, H = 150, PAD = 6;
+  const step = Math.max(1, Math.floor(route.length / 400));
+  const pts = route.filter((_, i) => i % step === 0);
+  pts.push(route[route.length - 1]);
+  const eles = pts.map(p => p.ele);
+  const lo = Math.min(...eles), hi = Math.max(...eles);
+  const flat = (hi - lo) < 10; // no real elevation data — render a progress band
+  const x = p => PAD + (p.mi / totalMi) * (W - 2 * PAD);
+  const y = flat ? () => H * 0.42
+                 : p => (H - PAD) - ((p.ele - lo) / Math.max(1, hi - lo)) * (H - 2 * PAD - 18);
+  const line = pts.map(p => x(p).toFixed(1) + "," + y(p).toFixed(1)).join(" ");
+  const area = `M ${PAD},${H-PAD} L ` + line.replace(/ /g, " L ") + ` L ${W-PAD},${H-PAD} Z`;
+  const doneW = PAD + (Math.min(doneMi, totalMi) / totalMi) * (W - 2 * PAD);
+  const curPt = pts.reduce((a, p) => Math.abs(p.mi - doneMi) < Math.abs(a.mi - doneMi) ? p : a, pts[0]);
+
+  const wpTicks = (wps || []).map(w => {
+    const wx = x(w.pt).toFixed(1);
+    return `<g><title>${escapeHtml(w.name)} \u00b7 mi ${w.mi}</title>` +
+      `<line x1="${wx}" y1="${PAD}" x2="${wx}" y2="${H-PAD}" style="stroke:var(--contour)" stroke-width="1" opacity="0.3" vector-effect="non-scaling-stroke"/>` +
+      `<circle cx="${wx}" cy="${y(w.pt).toFixed(1)}" r="3" style="fill:var(--card);stroke:var(--contour)" stroke-width="1.5"/></g>`;
+  }).join("");
+
+  svg.innerHTML = `
+    <defs><clipPath id="doneclip"><rect x="0" y="0" width="${doneW.toFixed(1)}" height="${H}"/></clipPath></defs>
+    <path d="${area}" style="fill:var(--prof-bg)"/>
+    <path d="${area}" style="fill:var(--prof-done)" clip-path="url(#doneclip)"/>
+    <polyline points="${line}" fill="none" style="stroke:var(--contour)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    ${wpTicks}
+    ${doneMi > 0 ? `<line x1="${doneW.toFixed(1)}" y1="${PAD}" x2="${doneW.toFixed(1)}" y2="${H-PAD}" style="stroke:var(--rust)" stroke-width="1.5" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>
+    <circle cx="${x(curPt).toFixed(1)}" cy="${y(curPt).toFixed(1)}" r="5" style="fill:var(--rust);stroke:var(--paper)" stroke-width="2"/>` : ""}
+  `;
+  if (!flat && isFinite(lo) && isFinite(hi)) {
+    $("cap-elev").textContent = Math.round(lo * 3.28084).toLocaleString() + "–" +
+                                Math.round(hi * 3.28084).toLocaleString() + " ft";
+  }
+}
+
+function themeColor(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function buildMap(route, checkins, wps) {
+  const inkC = themeColor("--ink"), contourC = themeColor("--contour"),
+        cardC = themeColor("--card");
+  const map = L.map("map", { scrollWheelZoom: false });
+  const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+    maxZoom: 16,
+    attribution: 'Map © OpenStreetMap contributors, SRTM · Tiles © OpenTopoMap (CC-BY-SA)'
+  }).addTo(map);
+
+  // OpenTopoMap is a free community service and occasionally slow or down;
+  // after repeated tile failures, fall back to standard OSM tiles.
+  let tileErrors = 0, swapped = false;
+  topo.on("tileerror", () => {
+    if (swapped || ++tileErrors < 4) return;
+    swapped = true;
+    map.removeLayer(topo);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: 'Map © OpenStreetMap contributors'
+    }).addTo(map);
+  });
+
+  let routeLine = null;
+  if (route) {
+    routeLine = L.polyline(route.map(p => [p.lat, p.lon]),
+      { color: contourC, weight: 3, dashArray: "6 6", opacity: 0.85 }).addTo(map);
+  }
+
+  (wps || []).forEach(w => {
+    L.circleMarker([w.pt.lat, w.pt.lon],
+      { radius: 6, color: contourC, weight: 2, fillColor: cardC, fillOpacity: 1 })
+      .addTo(map)
+      .bindPopup(`<strong>${escapeHtml(w.name)}</strong><br>mi ${w.mi}`);
+  });
+
+  if (checkins.length) {
+    L.polyline(checkins.map(c => [c.lat, c.lon]),
+      { color: inkC, weight: 2.5, opacity: 0.9 }).addTo(map);
+    checkins.forEach((c, i) => {
+      const last = i === checkins.length - 1;
+      const popup = `<strong>${fmtWhen(c.date)}</strong><br>` +
+                    (c.text ? escapeHtml(c.text) : "<em>Checked in — OK</em>") +
+                    `<br><span style="font-family:monospace;font-size:11px">${c.lat.toFixed(4)}, ${c.lon.toFixed(4)}</span>`;
+      if (last) {
+        L.marker([c.lat, c.lon], {
+          icon: L.divIcon({ className: "", html: '<div class="cur-dot"></div>', iconSize: [16,16], iconAnchor: [8,8] }),
+          zIndexOffset: 1000
+        }).addTo(map).bindPopup(popup);
+      } else {
+        L.circleMarker([c.lat, c.lon],
+          { radius: 5, color: inkC, weight: 1.5, fillColor: cardC, fillOpacity: 1 })
+          .addTo(map).bindPopup(popup);
+      }
+    });
+    const last = checkins[checkins.length - 1];
+    map.setView([last.lat, last.lon], 11);
+  } else if (routeLine) {
+    map.fitBounds(routeLine.getBounds(), { padding: [20, 20] });
+  } else {
+    map.setView([37.4, -118.9], 8); // Sierra Nevada fallback
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+
+
+(async function init() {
+  $("trail-title").textContent = CONFIG.trailName;
+  if (CONFIG.hikerName) $("eyebrow").textContent =
+    CONFIG.hikerName + " · Field log · Satellite check-in";
+  $("cap-start").textContent = CONFIG.startLabel;
+  $("cap-end").textContent = CONFIG.endLabel;
+
+  // Load both data files; neither failing should blank the page.
+  let route = null;
+  try { route = await loadRoute(); } catch (e) { /* handled below */ }
+
+  const ci = await loadCheckins();
+  let checkins = ci.list;
+
+  if (!ci.ok && !route) {
+    // Nothing loadable — almost certainly this file is being previewed
+    // outside GitHub Pages. Show the demo so the page explains itself.
+    checkins = DEMO_CHECKINS.map(c => ({ ...c, date: new Date(c.time) }));
+    showBanner("Preview mode with sample data. Host this file on GitHub Pages " +
+      "next to route.gpx and checkins.json for the real thing (see README).");
+  } else if (!route) {
+    showBanner("route.gpx wasn't found in the repository — upload it to enable " +
+      "the elevation profile, progress %, and mile markers.");
+  } else if (!ci.ok) {
+    showBanner("checkins.json couldn't be loaded — check that it exists in the " +
+      "repository and contains valid JSON (at minimum: []).");
+  }
+
+  const totalMi = route ? route[route.length - 1].mi : 0;
+  const wps = route ? usableWaypoints(route, totalMi) : [];
+  let doneMi = 0;
+  let pace = 0;
+
+  if (checkins.length) {
+    const last = checkins[checkins.length - 1];
+
+    if (route) {
+      snapAll(route, checkins);
+      // furthest on-route progress so far (a side trip shouldn't roll it back)
+      checkins.forEach(c => {
+        if (c.s.offMi <= CONFIG.offRouteMi && c.s.mi > doneMi) doneMi = c.s.mi;
+      });
+    }
+
+    const hrs = (Date.now() - last.date) / 36e5;
+    const badge = $("ok-badge");
+    if (hrs <= CONFIG.staleHours) {
+      badge.textContent = "OK · " + relTime(last.date);
+    } else {
+      badge.textContent = "No recent check-in";
+      badge.classList.add("stale");
+      $("status-detail").textContent = "Last heard " + relTime(last.date) +
+        ". Satellite gaps and rest days are normal.";
+    }
+
+    const startD = CONFIG.startDate ? new Date(CONFIG.startDate + "T00:00:00")
+                                    : checkins[0].date;
+    const days = Math.max(1, Math.ceil((Date.now() - startD) / 864e5));
+    pace = doneMi / days;
+
+    $("st-days").textContent = days;
+    $("st-last").textContent = relTime(last.date);
+
+    // Forecast at the last position, at the route's elevation there if on-route
+    const lastEle = route && route.hasEle && last.s && last.s.offMi <= CONFIG.offRouteMi
+      ? route[last.s.idx].ele : NaN;
+    loadWeather(last.lat, last.lon, lastEle);
+
+    if (route) {
+      $("st-miles").textContent = doneMi.toFixed(1);
+      $("st-pace").textContent = pace.toFixed(1);
+      $("pct").textContent = Math.min(100, Math.round((doneMi / totalMi) * 100));
+
+      // Total climbing so far, along the route up to the furthest point
+      if (doneMi > 0 && route.hasEle) {
+        let doneIdx = 0;
+        while (doneIdx < route.length - 1 && route[doneIdx].mi < doneMi) doneIdx++;
+        const gl = routeGainLoss(route, 0, doneIdx);
+        $("st-gain").textContent = Math.round(gl.gainFt).toLocaleString();
+      }
+
+      // Projected finish from actual pace so far
+      if (pace > 0 && doneMi < totalMi) {
+        const finish = new Date(Date.now() + ((totalMi - doneMi) / pace) * 864e5);
+        $("st-finish").textContent =
+          finish.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      } else if (doneMi >= totalMi) {
+        $("st-finish").textContent = "Done!";
+      }
+    }
+  }
+
+  if (route) {
+    $("miles-line").textContent = doneMi.toFixed(1) + " of " + totalMi.toFixed(0) + " mi";
+    drawProfile(route, doneMi, totalMi, wps);
+    if (wps.length) renderNextUp(wps, doneMi, pace);
+  } else {
+    $("profile-block").classList.add("hidden");
+  }
+
+  if (typeof L === "undefined") {
+    $("map").innerHTML = '<div style="padding:20px;font-family:monospace;font-size:12px">' +
+      'Map library blocked in this preview \u2014 it loads on the live site.</div>';
+  } else {
+    buildMap(route, checkins, wps);
+  }
+  renderLog(checkins, route);
+})();
+</script>
+</body>
+</html>

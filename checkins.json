@@ -1,0 +1,37 @@
+[
+  {
+    "time": "2026-07-06T15:00:00Z",
+    "lat": 37.87042,
+    "lon": -119.37071,
+    "type": "message",
+    "text": "DEMO - Rolling out of Tuolumne down Lyell Canyon."
+  },
+  {
+    "time": "2026-07-07T02:00:00Z",
+    "lat": 37.79627,
+    "lon": -119.2625,
+    "type": "checkin",
+    "text": ""
+  },
+  {
+    "time": "2026-07-07T14:30:00Z",
+    "lat": 37.77763,
+    "lon": -119.26203,
+    "type": "checkin",
+    "text": ""
+  },
+  {
+    "time": "2026-07-08T02:30:00Z",
+    "lat": 37.73034,
+    "lon": -119.17785,
+    "type": "message",
+    "text": "DEMO - Camped at Thousand Island Lake. Banner Peak showing off."
+  },
+  {
+    "time": "2026-07-09T01:30:00Z",
+    "lat": 37.67155,
+    "lon": -119.11061,
+    "type": "message",
+    "text": "DEMO - Long day. Feet fine, appetite enormous."
+  }
+]
