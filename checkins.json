@@ -61,5 +61,12 @@
     "lon": -90.07491,
     "type": "message",
     "text": "Test message checking in"
+  },
+  {
+    "time": "2026-07-09T06:42:10.243Z",
+    "lat": 29.93293,
+    "lon": -90.07491,
+    "type": "message",
+    "text": "Test message wwwww coooords"
   }
 ]
