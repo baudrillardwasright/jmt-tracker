@@ -89,6 +89,15 @@
   .ok-badge.stale { border-color: var(--contour); color: var(--contour); }
   .statusline .detail { color: var(--faded); font-size: 15px; }
 
+  /* ---- failsafe notice (toggled by email command) ---- */
+  .site-notice {
+    margin-top: 16px; padding: 12px 16px;
+    border: 2px solid var(--rust); background: var(--card); color: var(--rust);
+    font-family: "Bricolage Grotesque", sans-serif; font-weight: 800;
+    font-size: 15px; letter-spacing: 0.05em; text-transform: uppercase;
+    text-align: center;
+  }
+
   /* ---- notice banner (missing files / preview mode) ---- */
   .banner {
     margin-top: 16px; padding: 10px 14px;
@@ -226,6 +235,7 @@
       <span class="ok-badge" id="ok-badge">Awaiting first check-in</span>
       <span class="detail" id="status-detail"></span>
     </div>
+    <div class="site-notice hidden" id="site-notice"></div>
     <div class="banner hidden" id="banner"></div>
   </header>
 
@@ -383,6 +393,21 @@ async function addElevations(pts) {
   } catch (e) {
     console.warn("Elevation lookup failed; profile will render flat:", e);
   }
+}
+
+// status.json is written by the email parser when a home contact sends
+// a FAILSAFE command; a non-empty notice renders prominently up top.
+async function loadNotice() {
+  try {
+    const res = await fetch("status.json?t=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) return;
+    const s = await res.json();
+    if (s && typeof s.notice === "string" && s.notice.trim()) {
+      const el = $("site-notice");
+      el.textContent = s.notice.trim();
+      el.classList.remove("hidden");
+    }
+  } catch (e) { /* no status file is the normal state */ }
 }
 
 async function loadRoute() {
@@ -856,6 +881,7 @@ function escapeHtml(s) {
     CONFIG.hikerName + " · Field log · Satellite check-in";
   $("cap-start").textContent = CONFIG.startLabel;
   $("cap-end").textContent = CONFIG.endLabel;
+  loadNotice();
 
   // Load both data files; neither failing should blank the page.
   let route = null;
