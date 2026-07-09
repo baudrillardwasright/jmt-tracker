@@ -97,7 +97,16 @@
   }
 
   /* ---- signature: elevation profile as the progress bar ---- */
-  .profile { margin: 26px 0 8px; }
+  .profile { margin: 26px 0 8px; position: relative; }
+  .wp-hit { cursor: pointer; }
+  .wp-tip {
+    position: absolute; transform: translateX(-50%);
+    background: var(--card); color: var(--ink);
+    border: 1.5px solid var(--ink);
+    font-family: "IBM Plex Mono", monospace; font-size: 11.5px; line-height: 1.4;
+    padding: 4px 9px; white-space: nowrap; pointer-events: none; z-index: 5;
+    display: none;
+  }
   .profile-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
   .profile-head .pct {
     font-family: "Bricolage Grotesque", sans-serif; font-weight: 800;
@@ -279,6 +288,7 @@ const CONFIG = {
   checkinsFile:"checkins.json",       // written by the email parser
   offRouteMi:  6,                     // beyond this distance from the route, progress isn't advanced
   staleHours:  48,                    // after this, badge softens to "no recent check-in"
+  drawTrack:   true,                  // solid traveled line between check-ins; false = pins only
   // Named points along the route, by trail mile measured along route.gpx.
   // These were measured directly on your onX export (Tuolumne Meadows ->
   // Whitney Portal, 212.4 mi, including the Onion Valley resupply detour).
@@ -657,11 +667,12 @@ function drawProfile(route, doneMi, totalMi, wps) {
   const doneW = PAD + (Math.min(doneMi, totalMi) / totalMi) * (W - 2 * PAD);
   const curPt = pts.reduce((a, p) => Math.abs(p.mi - doneMi) < Math.abs(a.mi - doneMi) ? p : a, pts[0]);
 
-  const wpTicks = (wps || []).map(w => {
+  const wpTicks = (wps || []).map((w, i) => {
     const wx = x(w.pt).toFixed(1);
-    return `<g><title>${escapeHtml(w.name)} \u00b7 mi ${w.mi}</title>` +
+    return `<g class="wp-hit" data-wp="${i}">` +
       `<line x1="${wx}" y1="${PAD}" x2="${wx}" y2="${H-PAD}" style="stroke:var(--contour)" stroke-width="1" opacity="0.3" vector-effect="non-scaling-stroke"/>` +
-      `<circle cx="${wx}" cy="${y(w.pt).toFixed(1)}" r="3" style="fill:var(--card);stroke:var(--contour)" stroke-width="1.5"/></g>`;
+      `<circle cx="${wx}" cy="${y(w.pt).toFixed(1)}" r="3" style="fill:var(--card);stroke:var(--contour)" stroke-width="1.5"/>` +
+      `<rect x="${(parseFloat(wx)-14).toFixed(1)}" y="0" width="28" height="${H}" fill="transparent" pointer-events="all"/></g>`;
   }).join("");
 
   svg.innerHTML = `
@@ -677,10 +688,67 @@ function drawProfile(route, doneMi, totalMi, wps) {
     $("cap-elev").textContent = Math.round(lo * 3.28084).toLocaleString() + "–" +
                                 Math.round(hi * 3.28084).toLocaleString() + " ft";
   }
+  attachWpTips(svg, wps || [], route.hasEle && !flat, totalMi);
+}
+
+// Hover (desktop) or tap (mobile) a waypoint hairline on the profile to
+// see its name, mile, and elevation in a small tooltip.
+function attachWpTips(svg, wps, hasEle, totalMi) {
+  if (!wps.length) return;
+  const holder = svg.parentElement;
+  let tip = holder.querySelector(".wp-tip");
+  if (!tip) {
+    tip = document.createElement("div");
+    tip.className = "wp-tip";
+    holder.appendChild(tip);
+  }
+  const show = g => {
+    const w = wps[+g.dataset.wp];
+    if (!w) return;
+    tip.textContent = w.name + " \u00b7 mi " + w.mi +
+      (hasEle ? " \u00b7 " + Math.round(w.pt.ele * 3.28084).toLocaleString() + " ft" : "");
+    const rect = svg.getBoundingClientRect();
+    const hold = holder.getBoundingClientRect();
+    let left = (rect.left - hold.left) + (w.pt.mi / totalMi) * rect.width;
+    left = Math.min(Math.max(left, 80), hold.width - 80);
+    tip.style.left = left + "px";
+    tip.style.top = (rect.top - hold.top + 2) + "px";
+    tip.style.display = "block";
+  };
+  const hide = () => { tip.style.display = "none"; };
+  svg.addEventListener("mouseover", e => {
+    const g = e.target.closest(".wp-hit");
+    if (g) show(g); else hide();
+  });
+  svg.addEventListener("mouseleave", hide);
+  svg.addEventListener("click", e => {
+    const g = e.target.closest(".wp-hit");
+    if (g) show(g); else hide();
+  });
 }
 
 function themeColor(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+// The traveled line between consecutive check-ins follows the route
+// geometry rather than cutting straight across terrain. Off-route
+// check-ins fall back to straight segments.
+function trackLatLngs(route, checkins) {
+  const out = [];
+  let prev = null;
+  checkins.forEach(c => {
+    if (prev && route && prev.s && c.s &&
+        prev.s.offMi <= CONFIG.offRouteMi && c.s.offMi <= CONFIG.offRouteMi) {
+      const a = prev.s.idx, b = c.s.idx;
+      const stride = Math.max(1, Math.floor(Math.abs(b - a) / 2000));
+      if (a <= b) { for (let i = a; i < b; i += stride) out.push([route[i].lat, route[i].lon]); }
+      else        { for (let i = a; i > b; i -= stride) out.push([route[i].lat, route[i].lon]); }
+    }
+    out.push([c.lat, c.lon]);
+    prev = c;
+  });
+  return out;
 }
 
 function buildMap(route, checkins, wps) {
@@ -719,8 +787,10 @@ function buildMap(route, checkins, wps) {
   });
 
   if (checkins.length) {
-    L.polyline(checkins.map(c => [c.lat, c.lon]),
-      { color: inkC, weight: 2.5, opacity: 0.9 }).addTo(map);
+    if (CONFIG.drawTrack) {
+      L.polyline(trackLatLngs(route, checkins),
+        { color: inkC, weight: 2.5, opacity: 0.9 }).addTo(map);
+    }
     checkins.forEach((c, i) => {
       const last = i === checkins.length - 1;
       const popup = `<strong>${fmtWhen(c.date)}</strong><br>` +
