@@ -54,6 +54,8 @@
     background: var(--card); color: var(--ink);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  section, #map, .profile, .stats { scroll-margin-top: 14px; }
   html { -webkit-text-size-adjust: 100%; }
   body {
     background: var(--paper);
@@ -89,6 +91,15 @@
   .ok-badge.stale { border-color: var(--contour); color: var(--contour); }
   .statusline .detail { color: var(--faded); font-size: 15px; }
 
+  /* ---- section jump links ---- */
+  .jump {
+    display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 14px;
+    font-family: "IBM Plex Mono", monospace; font-size: 11.5px;
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .jump a { color: var(--contour); text-decoration: none; border-bottom: 1px solid transparent; padding-bottom: 1px; }
+  .jump a:hover, .jump a:focus-visible { border-color: var(--contour); }
+
   /* ---- failsafe notice (toggled by email command) ---- */
   .site-notice {
     margin-top: 16px; padding: 12px 16px;
@@ -114,7 +125,10 @@
     border: 1.5px solid var(--ink);
     font-family: "IBM Plex Mono", monospace; font-size: 11.5px; line-height: 1.4;
     padding: 4px 9px; white-space: nowrap; pointer-events: none; z-index: 5;
-    display: none;
+    display: none; max-width: calc(100% - 12px);
+  }
+  @media (max-width: 560px) {
+    .wp-tip { white-space: normal; text-align: center; }
   }
   .profile-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
   .profile-head .pct {
@@ -138,13 +152,25 @@
     background: #e8e6da;
   }
   .map-note { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--faded); margin-bottom: 26px; }
+  .camp-dot {
+    width: 18px; height: 18px; border-radius: 4px;
+    background: var(--card); border: 1.5px solid var(--ink);
+    font: 10px/15px "IBM Plex Mono", monospace; text-align: center;
+    color: var(--contour);
+  }
   .cur-dot {
     width: 16px; height: 16px; border-radius: 50%;
     background: var(--rust); border: 2.5px solid #fff;
     box-shadow: 0 0 0 2px var(--rust);
   }
   @media (prefers-reduced-motion: no-preference) {
-    .cur-dot { animation: pulse 2.2s ease-out infinite; }
+    .camp-dot {
+    width: 18px; height: 18px; border-radius: 4px;
+    background: var(--card); border: 1.5px solid var(--ink);
+    font: 10px/15px "IBM Plex Mono", monospace; text-align: center;
+    color: var(--contour);
+  }
+  .cur-dot { animation: pulse 2.2s ease-out infinite; }
     @keyframes pulse {
       0%   { box-shadow: 0 0 0 2px var(--rust), 0 0 0 0 rgba(177,74,34,0.45); }
       70%  { box-shadow: 0 0 0 2px var(--rust), 0 0 0 14px rgba(177,74,34,0); }
@@ -160,6 +186,7 @@
   .stat { padding: 12px 14px; background: var(--card); }
   .stat .num { font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: clamp(19px, 4vw, 26px); line-height: 1.1; white-space: nowrap; }
   .stat .lbl { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faded); margin-top: 2px; }
+  .stat .sub { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--contour); margin-top: 2px; }
   @media (max-width: 560px) { .stats { grid-template-columns: repeat(2, 1fr); } }
 
   .up { color: var(--good); }
@@ -186,6 +213,26 @@
   .wx-day .m { font-size: 11px; color: var(--faded); margin-top: 2px; }
   @media (max-width: 560px) { .wx { grid-template-columns: repeat(2, 1fr); } #map { height: 52vh; } }
   .wx-note { font-size: 13px; color: var(--faded); margin-top: 10px; }
+
+  .gear-line {
+    margin-top: 8px; font-family: "IBM Plex Mono", monospace; font-size: 12px;
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .gear-line a { color: var(--lake); text-decoration: none; border-bottom: 1.5px solid var(--lake); }
+  #gear-frame {
+    width: 100%; height: 600px; border: 1.5px solid var(--ink);
+    background: var(--card); display: block;
+  }
+
+  /* ---- trail photos ---- */
+  .tphotos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .tphotos a { display: block; border: 1.5px solid var(--ink); background: var(--card); }
+  .tphotos img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; }
+  .tphotos .cap {
+    font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--faded);
+    padding: 5px 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  @media (max-width: 560px) { .tphotos { grid-template-columns: repeat(2, 1fr); } }
 
   /* ---- day headers inside the message log ---- */
   .day-head {
@@ -236,6 +283,7 @@
       <span class="detail" id="status-detail"></span>
     </div>
     <div class="site-notice hidden" id="site-notice"></div>
+    <nav class="jump" id="jump-nav" aria-label="Sections"></nav>
     <div class="banner hidden" id="banner"></div>
   </header>
 
@@ -254,9 +302,9 @@
   </div>
 
   <div id="map"></div>
-  <div class="map-note">Dashed line: planned route · Solid line: actual check-ins · <span style="color:var(--rust)">●</span> last known position</div>
+  <div class="map-note">Dashed line: planned route · Solid line: traveled · <span style="color:var(--contour)">▲</span> camps · <span style="color:var(--rust)">●</span> last known position</div>
 
-  <div class="stats">
+  <div class="stats" id="stats-strip">
     <div class="stat"><div class="num" id="st-miles">—</div><div class="lbl">Trail miles</div></div>
     <div class="stat"><div class="num" id="st-days">—</div><div class="lbl">Days on trail</div></div>
     <div class="stat"><div class="num" id="st-pace">—</div><div class="lbl">Mi / day</div></div>
@@ -264,11 +312,22 @@
     <div class="stat"><div class="num" id="st-last">—</div><div class="lbl">Last check-in</div></div>
     <div class="stat"><div class="num" id="st-finish">—</div><div class="lbl">Proj. finish</div></div>
   </div>
+  <div class="gear-line hidden" id="gear-line"></div>
+
+  <section id="highlights-section" class="hidden">
+    <h2>Highlights</h2>
+    <div class="stats" id="hl-grid"></div>
+  </section>
 
   <section id="weather-section" class="hidden">
     <h2>Forecast at last position</h2>
     <div class="wx" id="wx"></div>
     <p class="wx-note">Forecast from Open-Meteo for the last check-in's coordinates and elevation. Mountain weather changes faster than any forecast — treat this as a rough guide.</p>
+  </section>
+
+  <section id="trail-photos-section" class="hidden">
+    <h2>Photos from the trail</h2>
+    <div class="tphotos" id="tphotos"></div>
   </section>
 
   <section id="log-section">
@@ -277,6 +336,11 @@
     <p class="log-note hidden" id="log-note">Daily figures are estimates from satellite check-ins snapped to the route: miles are camp-to-camp along the trail, gain and loss come from the route's elevation profile, and hours run from the day's first to last check-in — days with a single check-in show no hours.</p>
   </section>
 
+
+  <section id="gear-section" class="hidden">
+    <h2>Gear</h2>
+    <iframe id="gear-frame" title="Gear list"></iframe>
+  </section>
 
   <footer>
     <p>Positions are sent from a ZOLEO satellite communicator, so updates arrive only when a check-in is sent — gaps of a day or more are normal and expected. This page updates itself; nobody is typing these in. Map data © <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a> contributors, tiles by <a href="https://opentopomap.org" rel="noopener">OpenTopoMap</a>.</p>
@@ -292,30 +356,35 @@ const CONFIG = {
   hikerName:   "",                    // optional, e.g. "Sam" → shown in the eyebrow
   startLabel:  "Tuolumne Meadows",    // caption under the elevation profile
   endLabel:    "Whitney Portal",
-  startDate:   "",                    // optional "YYYY-MM-DD"; blank = date of first check-in
+  startDate:   "2026-07-17",          // permit date; drives countdown, days, pace
   timeZone:    "America/Los_Angeles", // trail timezone; days split at this midnight
   routeFile:   "route.gpx",           // your planned route, in this repo
   checkinsFile:"checkins.json",       // written by the email parser
   offRouteMi:  6,                     // beyond this distance from the route, progress isn't advanced
   staleHours:  48,                    // after this, badge softens to "no recent check-in"
   drawTrack:   true,                  // solid traveled line between check-ins; false = pins only
+  gearUrl:     "",                    // gear list share link; blank = hidden
+  // Full embedded gear list (paste the embed snippet from your gear-list
+  // service). NOTE: any closing script tag inside must be written as <\/script>.
+  gearEmbed:   "",
   // Named points along the route, by trail mile measured along route.gpx.
   // These were measured directly on your onX export (Tuolumne Meadows ->
   // Whitney Portal, 212.4 mi, including the Onion Valley resupply detour).
   // "VVR turnoff" is approximate - verify against your maps.
   waypoints: [
-    { name: "Donohue Pass",         mi: 13.9 },
+    { name: "Donohue Pass",         mi: 13.9,  pass: true },
     { name: "Thousand Island Lake", mi: 20.0 },
     { name: "Red's Meadow",         mi: 36.4 },
     { name: "VVR turnoff",          mi: 66 },
     { name: "Muir Trail Ranch",     mi: 85.1 },
-    { name: "Muir Pass",            mi: 106.2 },
-    { name: "Mather Pass",          mi: 131.0 },
-    { name: "Pinchot Pass",         mi: 137.7 },
-    { name: "Glen Pass",            mi: 153.8 },
+    { name: "Muir Pass",            mi: 106.2, pass: true },
+    { name: "Mather Pass",          mi: 131.0, pass: true },
+    { name: "Pinchot Pass",         mi: 137.7, pass: true },
+    { name: "Glen Pass",            mi: 153.8, pass: true },
     { name: "Kearsarge junction",   mi: 157.1 },
+    { name: "Kearsarge Pass",       mi: 159.8, pass: true },
     { name: "Onion Valley (resupply)", mi: 163.7 },
-    { name: "Forester Pass",        mi: 181.1 },
+    { name: "Forester Pass",        mi: 181.1, pass: true },
     { name: "Mt. Whitney summit",   mi: 201.9 },
     { name: "Whitney Portal",       mi: 212.3 }
   ]
@@ -408,6 +477,113 @@ async function loadNotice() {
       el.classList.remove("hidden");
     }
   } catch (e) { /* no status file is the normal state */ }
+}
+
+// photos.json is written by the email parser when photos are sent from
+// town wifi; each entry is { file, caption, time }.
+async function loadTrailPhotos() {
+  try {
+    const res = await fetch("photos.json?t=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) return;
+    const list = await res.json();
+    if (!Array.isArray(list) || !list.length) return;
+    const grid = $("tphotos");
+    [...list].reverse().forEach(p => {
+      if (!p || !p.file) return;
+      const a = document.createElement("a");
+      a.href = p.file;
+      a.target = "_blank";
+      a.rel = "noopener";
+      const when = p.time ? new Date(p.time).toLocaleDateString(undefined,
+        { month: "short", day: "numeric" }) : "";
+      a.innerHTML = `<img loading="lazy" src="${encodeURI(p.file)}" alt="${escapeHtml(p.caption || "trail photo")}">` +
+        `<div class="cap">${escapeHtml([when, p.caption].filter(Boolean).join(" \u00b7 "))}</div>`;
+      grid.appendChild(a);
+    });
+    $("trail-photos-section").classList.remove("hidden");
+    updateNav();
+  } catch (e) { /* no photos yet is the normal state */ }
+}
+
+// Jump links for whichever sections are actually visible; re-run when
+// async sections (weather, photos) unhide themselves.
+function updateNav() {
+  const items = [
+    ["profile-block", "Progress"], ["map", "Map"], ["stats-strip", "Stats"],
+    ["highlights-section", "Highlights"], ["weather-section", "Weather"],
+    ["trail-photos-section", "Photos"], ["log-section", "Log"],
+    ["gear-section", "Gear"],
+  ];
+  $("jump-nav").innerHTML = items
+    .filter(([id]) => { const el = $(id); return el && !el.classList.contains("hidden"); })
+    .map(([id, label]) => `<a href="#${id}">${label}</a>`)
+    .join("");
+}
+
+// Superlatives computed from the daily rows and route.
+function renderHighlights(rows, opts) {
+  if (!rows.length) return;
+  const { doneMi, days, gainSoFar, hasEle, route, wps } = opts;
+  const fmtD = r => "D" + r.dayNum + " \u00b7 " +
+    new Date(r.key + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const dash = "\u2014";
+  const withMiles = rows.filter(r => r.miles !== null);
+  const longest = withMiles.length
+    ? withMiles.reduce((a, r) => r.miles > a.miles ? r : a) : null;
+  const withHours = rows.filter(r => r.hours !== null);
+  const longestH = withHours.length
+    ? withHours.reduce((a, r) => r.hours > a.hours ? r : a) : null;
+  const withGain = rows.filter(r => r.gainFt !== null);
+  const climb = withGain.length
+    ? withGain.reduce((a, r) => r.gainFt > a.gainFt ? r : a) : null;
+  const drop = withGain.length
+    ? withGain.reduce((a, r) => r.lossFt > a.lossFt ? r : a) : null;
+  // rest days: hiking days under 2 mi, plus calendar days with no check-ins
+  const restRows = withMiles.filter(r => r.miles < 2).length;
+  const span = rows[rows.length - 1].dayNum - rows[0].dayNum + 1;
+  const rest = restRows + Math.max(0, span - rows.length);
+  // passes: flagged waypoints at or behind the furthest position
+  const passes = wps.filter(w => w.pass);
+  const passesDone = passes.filter(w => w.mi <= doneMi + 0.2);
+  const lastPass = passesDone[passesDone.length - 1];
+  // highest point crossed so far, named if a waypoint sits nearby
+  let high = null;
+  if (hasEle && doneMi > 0) {
+    let hiIdx = 0;
+    for (let i = 0; i < route.length && route[i].mi <= doneMi; i++) {
+      if (route[i].ele > route[hiIdx].ele) hiIdx = i;
+    }
+    const near = wps.find(w => Math.abs(w.mi - route[hiIdx].mi) < 0.7);
+    high = { ele: route[hiIdx].ele, name: near ? near.name : "" };
+  }
+  // highest camp: max end-of-day elevation
+  const camps = rows.filter(r => r.campEle !== null);
+  const hiCamp = camps.length
+    ? camps.reduce((a, r) => r.campEle > a.campEle ? r : a) : null;
+
+  const ftTxt = m => Math.round(m * 3.28084).toLocaleString() + " ft";
+  const cell = (num, lbl, sub) =>
+    `<div class="stat"><div class="num">${num}</div><div class="lbl">${lbl}</div>` +
+    (sub ? `<div class="sub">${sub}</div>` : "") + `</div>`;
+
+  let cells =
+    cell(longest ? longest.miles.toFixed(1) + " mi" : dash, "Longest day", longest ? fmtD(longest) : "") +
+    cell(longestH ? longestH.hours.toFixed(1) + " h" : dash, "Longest day (hours)", longestH ? fmtD(longestH) : "") +
+    cell(climb ? "+" + Math.round(climb.gainFt).toLocaleString() + " ft" : dash, "Biggest climb", climb ? fmtD(climb) : "") +
+    cell(drop ? "\u2212" + Math.round(drop.lossFt).toLocaleString() + " ft" : dash, "Biggest descent", drop ? fmtD(drop) : "") +
+    cell(passes.length ? passesDone.length + " of " + passes.length : dash, "Passes climbed",
+      lastPass ? "latest: " + escapeHtml(lastPass.name) : "") +
+    cell(high ? ftTxt(high.ele) : dash, "Highest point", high ? escapeHtml(high.name) : "") +
+    cell(hiCamp ? ftTxt(hiCamp.campEle) : dash, "Highest camp", hiCamp ? fmtD(hiCamp) : "") +
+    cell(String(rest), "Rest days", "under 2 mi or no check-in") +
+    cell(days ? (doneMi / days).toFixed(1) + " mi" : dash, "Avg per day", "") +
+    cell(hasEle && days ? "+" + Math.round(gainSoFar / days).toLocaleString() + " ft" : dash, "Avg climb per day", "");
+  // pad to a full row so the grid has no holes
+  const per = 3, count = 10;
+  for (let i = 0; i < (per - (count % per)) % per; i++) cells += '<div class="stat"></div>';
+
+  $("hl-grid").innerHTML = cells;
+  $("highlights-section").classList.remove("hidden");
 }
 
 async function loadRoute() {
@@ -569,6 +745,7 @@ async function loadWeather(lat, lon, eleMeters) {
       grid.appendChild(cell);
     });
     $("weather-section").classList.remove("hidden");
+    updateNav();
   } catch (e) { console.warn("Weather lookup failed (blocked network or Open-Meteo unreachable):", e); }
 }
 
@@ -595,7 +772,7 @@ function buildDaily(checkins, route) {
     const first = d.entries[0].date, last = d.entries[d.entries.length - 1].date;
     const hours = d.entries.length >= 2 ? (last - first) / 36e5 : null;
 
-    let miles = null, gainFt = null, lossFt = null;
+    let miles = null, gainFt = null, lossFt = null, campEle = null;
     if (d.snapped.length) {
       const from = prevSnap || d.snapped[0];
       const to = d.snapped[d.snapped.length - 1];
@@ -604,10 +781,11 @@ function buildDaily(checkins, route) {
         const gl = routeGainLoss(route, from.idx, to.idx);
         gainFt = gl.gainFt; lossFt = gl.lossFt;
       }
+      campEle = route.hasEle ? route[to.idx].ele : null;
       prevSnap = to;
     }
     const dayNum = Math.round((new Date(k) - new Date(startKey)) / 864e5) + 1;
-    rows.push({ key: k, dayNum, miles, gainFt, lossFt, hours });
+    rows.push({ key: k, dayNum, miles, gainFt, lossFt, hours, campEle });
   }
   return rows;
 }
@@ -740,13 +918,16 @@ function attachWpTips(svg, wps, hasEle, totalMi, cur) {
   const hide = () => { tip.style.display = "none"; setHi(-1); };
   const place = (mi, text, idx) => {
     tip.textContent = text;
+    tip.style.display = "block"; // must be visible to measure its width
     const rect = svg.getBoundingClientRect();
     const hold = holder.getBoundingClientRect();
+    const half = tip.offsetWidth / 2 + 4;
     let left = (rect.left - hold.left) + (mi / totalMi) * rect.width;
-    left = Math.min(Math.max(left, 80), hold.width - 80);
+    left = hold.width <= tip.offsetWidth + 8
+      ? hold.width / 2
+      : Math.min(Math.max(left, half), hold.width - half);
     tip.style.left = left + "px";
     tip.style.top = (rect.top - hold.top + 2) + "px";
-    tip.style.display = "block";
     setHi(idx);
   };
   const onPoint = clientX => {
@@ -844,15 +1025,27 @@ function buildMap(route, checkins, wps) {
       L.polyline(trackLatLngs(route, checkins),
         { color: inkC, weight: 2.5, opacity: 0.9 }).addTo(map);
     }
+    // last check-in of each trail day = that night's camp
+    const campIdx = new Set();
+    const lastOfDay = new Map();
+    checkins.forEach((c, i) => lastOfDay.set(dayKey(c.date), i));
+    lastOfDay.forEach(i => { if (i !== checkins.length - 1) campIdx.add(i); });
     checkins.forEach((c, i) => {
       const last = i === checkins.length - 1;
-      const popup = `<strong>${fmtWhen(c.date)}</strong><br>` +
+      const isCamp = campIdx.has(i);
+      const popup = `${isCamp ? "\u26fa Camp<br>" : ""}<strong>${fmtWhen(c.date)}</strong><br>` +
                     (c.text ? escapeHtml(c.text) : "<em>Checked in — OK</em>") +
                     `<br><span style="font-family:monospace;font-size:11px">${c.lat.toFixed(4)}, ${c.lon.toFixed(4)}</span>`;
       if (last) {
         L.marker([c.lat, c.lon], {
           icon: L.divIcon({ className: "", html: '<div class="cur-dot"></div>', iconSize: [16,16], iconAnchor: [8,8] }),
           zIndexOffset: 1000
+        }).addTo(map).bindPopup(popup);
+      } else if (isCamp) {
+        L.marker([c.lat, c.lon], {
+          icon: L.divIcon({ className: "", html: '<div class="camp-dot">\u25b2</div>',
+            iconSize: [18, 18], iconAnchor: [9, 9] }),
+          zIndexOffset: 500
         }).addTo(map).bindPopup(popup);
       } else {
         L.circleMarker([c.lat, c.lon],
@@ -882,6 +1075,23 @@ function escapeHtml(s) {
   $("cap-start").textContent = CONFIG.startLabel;
   $("cap-end").textContent = CONFIG.endLabel;
   loadNotice();
+  loadTrailPhotos();
+  if (CONFIG.gearEmbed) {
+    // run the third-party embed inside an iframe so its script and
+    // styles can't interfere with this page (many gear-list embeds
+    // use document.write, which would blank a live page if injected
+    // directly after load)
+    $("gear-frame").srcdoc =
+      '<!DOCTYPE html><meta charset="utf-8">' +
+      '<style>body{margin:8px;font-family:sans-serif}</style>' +
+      CONFIG.gearEmbed;
+    $("gear-section").classList.remove("hidden");
+  }
+  if (CONFIG.gearUrl) {
+    $("gear-line").innerHTML =
+      '<a href="' + encodeURI(CONFIG.gearUrl) + '" target="_blank" rel="noopener">Gear list \u2197</a>';
+    $("gear-line").classList.remove("hidden");
+  }
 
   // Load both data files; neither failing should blank the page.
   let route = null;
@@ -904,10 +1114,22 @@ function escapeHtml(s) {
       "repository and contains valid JSON (at minimum: []).");
   }
 
+  if (!checkins.length && CONFIG.startDate) {
+    const s = new Date(CONFIG.startDate + "T00:00:00");
+    if (Date.now() < s.getTime()) {
+      const inDays = Math.ceil((s.getTime() - Date.now()) / 864e5);
+      $("ok-badge").textContent = "Starts " +
+        s.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      $("status-detail").textContent = inDays === 1 ? "1 day to go."
+        : inDays + " days to go.";
+    }
+  }
+
   const totalMi = route ? route[route.length - 1].mi : 0;
   const wps = route ? usableWaypoints(route, totalMi) : [];
   let doneMi = 0;
   let pace = 0;
+  let days = 0;
 
   if (checkins.length) {
     const last = checkins[checkins.length - 1];
@@ -922,7 +1144,10 @@ function escapeHtml(s) {
 
     const hrs = (Date.now() - last.date) / 36e5;
     const badge = $("ok-badge");
-    if (hrs <= CONFIG.staleHours) {
+    const finished = route && totalMi > 0 && doneMi >= totalMi - 0.5;
+    if (finished) {
+      badge.textContent = "Completed";
+    } else if (hrs <= CONFIG.staleHours) {
       badge.textContent = "OK · " + relTime(last.date);
     } else {
       badge.textContent = "No recent check-in";
@@ -933,8 +1158,12 @@ function escapeHtml(s) {
 
     const startD = CONFIG.startDate ? new Date(CONFIG.startDate + "T00:00:00")
                                     : checkins[0].date;
-    const days = Math.max(1, Math.ceil((Date.now() - startD) / 864e5));
+    days = Math.max(1, Math.ceil((Date.now() - startD) / 864e5));
     pace = doneMi / days;
+    if (finished) {
+      $("status-detail").textContent =
+        totalMi.toFixed(0) + " miles in " + days + " days. Hike complete.";
+    }
 
     $("st-days").textContent = days;
     $("st-last").textContent = relTime(last.date);
@@ -969,9 +1198,23 @@ function escapeHtml(s) {
   }
 
   if (route) {
-    $("miles-line").textContent = doneMi.toFixed(1) + " of " + totalMi.toFixed(0) + " mi";
+    let headLines = doneMi.toFixed(1) + " of " + totalMi.toFixed(0) + " mi";
+    let gainSoFar = 0;
+    if (route.hasEle) {
+      let doneIdx = 0;
+      while (doneIdx < route.length - 1 && route[doneIdx].mi < doneMi) doneIdx++;
+      const totalGain = routeGainLoss(route, 0, route.length - 1).gainFt;
+      gainSoFar = doneMi > 0 ? routeGainLoss(route, 0, doneIdx).gainFt : 0;
+      headLines += "<br>" + Math.round(gainSoFar).toLocaleString() + " of " +
+        Math.round(totalGain).toLocaleString() + " ft climbed";
+    }
+    $("miles-line").innerHTML = headLines;
     drawProfile(route, doneMi, totalMi, wps);
     if (wps.length) renderNextUp(wps, doneMi, pace);
+    if (checkins.length) {
+      renderHighlights(buildDaily(checkins, route),
+        { doneMi, days, gainSoFar, hasEle: route.hasEle, route, wps });
+    }
   } else {
     $("profile-block").classList.add("hidden");
   }
@@ -983,6 +1226,7 @@ function escapeHtml(s) {
     buildMap(route, checkins, wps);
   }
   renderLog(checkins, route);
+  updateNav();
 })();
 </script>
 </body>
