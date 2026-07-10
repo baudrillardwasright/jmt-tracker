@@ -153,9 +153,10 @@
   }
   .map-note { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--faded); margin-bottom: 26px; }
   .photo-dot {
-    width: 20px; height: 20px; border-radius: 50%;
-    background: var(--card); border: 1.5px solid var(--lake);
-    font-size: 11px; line-height: 18px; text-align: center;
+    width: 12px; height: 12px;
+    background: var(--lake); border: 2px solid var(--card);
+    box-shadow: 0 0 0 1.5px var(--lake);
+    transform: rotate(45deg);
   }
   .camp-dot {
     width: 18px; height: 18px; border-radius: 4px;
@@ -170,9 +171,10 @@
   }
   @media (prefers-reduced-motion: no-preference) {
     .photo-dot {
-    width: 20px; height: 20px; border-radius: 50%;
-    background: var(--card); border: 1.5px solid var(--lake);
-    font-size: 11px; line-height: 18px; text-align: center;
+    width: 12px; height: 12px;
+    background: var(--lake); border: 2px solid var(--card);
+    box-shadow: 0 0 0 1.5px var(--lake);
+    transform: rotate(45deg);
   }
   .camp-dot {
     width: 18px; height: 18px; border-radius: 4px;
@@ -312,7 +314,7 @@
   </div>
 
   <div id="map"></div>
-  <div class="map-note">Dashed line: planned route · Solid line: traveled · <span style="color:var(--contour)">▲</span> camps · <span style="color:var(--rust)">●</span> last known position</div>
+  <div class="map-note">Dashed line: planned route · Solid line: traveled · <span style="color:var(--contour)">▲</span> camps · <span style="color:var(--lake)">◆</span> photos · <span style="color:var(--rust)">●</span> last known position</div>
 
   <div class="stats" id="stats-strip">
     <div class="stat"><div class="num" id="st-miles">—</div><div class="lbl">Trail miles</div></div>
@@ -491,27 +493,31 @@ async function loadNotice() {
 
 // photos.json is written by the email parser when photos are sent from
 // town wifi; each entry is { file, caption, time }.
+function renderPhotoGrid(list) {
+  const grid = $("tphotos");
+  [...list].reverse().forEach(p => {
+    if (!p || !p.file) return;
+    const a = document.createElement("a");
+    a.href = p.file;
+    a.target = "_blank";
+    a.rel = "noopener";
+    const when = p.time ? new Date(p.time).toLocaleDateString(undefined,
+      { month: "short", day: "numeric" }) : "";
+    a.innerHTML = `<img loading="lazy" src="${encodeURI(p.file)}" alt="${escapeHtml(p.caption || "trail photo")}">` +
+      `<div class="cap">${escapeHtml([when, p.caption].filter(Boolean).join(" \u00b7 "))}</div>`;
+    grid.appendChild(a);
+  });
+  $("trail-photos-section").classList.remove("hidden");
+  updateNav();
+}
+
 async function loadTrailPhotos() {
   try {
     const res = await fetch("photos.json?t=" + Date.now(), { cache: "no-store" });
     if (!res.ok) return [];
     const list = await res.json();
     if (!Array.isArray(list) || !list.length) return [];
-    const grid = $("tphotos");
-    [...list].reverse().forEach(p => {
-      if (!p || !p.file) return;
-      const a = document.createElement("a");
-      a.href = p.file;
-      a.target = "_blank";
-      a.rel = "noopener";
-      const when = p.time ? new Date(p.time).toLocaleDateString(undefined,
-        { month: "short", day: "numeric" }) : "";
-      a.innerHTML = `<img loading="lazy" src="${encodeURI(p.file)}" alt="${escapeHtml(p.caption || "trail photo")}">` +
-        `<div class="cap">${escapeHtml([when, p.caption].filter(Boolean).join(" \u00b7 "))}</div>`;
-      grid.appendChild(a);
-    });
-    $("trail-photos-section").classList.remove("hidden");
-    updateNav();
+    renderPhotoGrid(list);
     return list;
   } catch (e) { /* no photos yet is the normal state */ }
   return [];
@@ -1116,8 +1122,8 @@ async function addPhotoPins(map, route, photos) {
     }
     const when = taken || p.time;
     L.marker([lat, lon], {
-      icon: L.divIcon({ className: "", html: '<div class="photo-dot">\ud83d\udcf7</div>',
-        iconSize: [20, 20], iconAnchor: [10, 10] }),
+      icon: L.divIcon({ className: "", html: '<div class="photo-dot"></div>',
+        iconSize: [16, 16], iconAnchor: [8, 8] }),
       zIndexOffset: 400
     }).addTo(map).bindPopup(
       `<a href="${encodeURI(p.file)}" target="_blank" rel="noopener">` +
