@@ -221,7 +221,7 @@
   .gear-line a { color: var(--lake); text-decoration: none; border-bottom: 1.5px solid var(--lake); }
   #gear-frame {
     width: 100%; height: 600px; border: 1.5px solid var(--ink);
-    background: var(--card); display: block;
+    background: #fff; display: block; color-scheme: light;
   }
 
   /* ---- trail photos ---- */
@@ -366,7 +366,7 @@ const CONFIG = {
   gearUrl:     "",                    // gear list share link; blank = hidden
   // Full embedded gear list (paste the embed snippet from your gear-list
   // service). NOTE: any closing script tag inside must be written as <\/script>.
-gearEmbed: '<script src="https://www.grampacker.net/e/s57vv7"><\/script><div id="s57vv7"></div>',
+  gearEmbed:   '<script src="https://www.grampacker.net/e/s57vv7"><\/script><div id="s57vv7"></div>',
   // Named points along the route, by trail mile measured along route.gpx.
   // These were measured directly on your onX export (Tuolumne Meadows ->
   // Whitney Portal, 212.4 mi, including the Onion Valley resupply detour).
@@ -1083,7 +1083,9 @@ function escapeHtml(s) {
     // directly after load)
     $("gear-frame").srcdoc =
       '<!DOCTYPE html><meta charset="utf-8">' +
-      '<style>body{margin:8px;font-family:sans-serif}</style>' +
+      // gear-list embeds are designed for a light page; pin one inside
+      // the frame so the text stays readable when the site is in dark mode
+      '<style>body{margin:8px;font-family:sans-serif;background:#fff;color:#1a1a1a}</style>' +
       CONFIG.gearEmbed;
     $("gear-section").classList.remove("hidden");
   }
