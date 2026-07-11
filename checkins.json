@@ -5,5 +5,12 @@
     "lon": -118.96006,
     "type": "message",
     "text": "37.64862, -118.96006 Test night 1 in mammoth"
+  },
+  {
+    "time": "2026-07-11T16:32:14.991Z",
+    "lat": 37.8742,
+    "lon": -119.36099,
+    "type": "message",
+    "text": "37.8742, -119.36099 Test backpackers"
   }
 ]
