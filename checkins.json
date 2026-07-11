@@ -12,5 +12,12 @@
     "lon": -119.36099,
     "type": "message",
     "text": "37.8742, -119.36099 Test backpackers"
+  },
+  {
+    "time": "2026-07-11T16:32:46.614Z",
+    "lat": 37.79576,
+    "lon": -119.26165,
+    "type": "message",
+    "text": "37.79576, -119.26165 Test night 1 camp"
   }
 ]
