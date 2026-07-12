@@ -375,6 +375,7 @@ const CONFIG = {
   offRouteMi:  6,                     // beyond this distance from the route, progress isn't advanced
   staleHours:  48,                    // after this, badge softens to "no recent check-in"
   drawTrack:   true,                  // solid traveled line between check-ins; false = pins only
+  startAtMileZero: true,              // credit the hike from the route's start (Tuolumne) even if the first check-in comes mid-trail
   gearUrl:     "",                    // gear list share link; blank = hidden
   // Full embedded gear list (paste the embed snippet from your gear-list
   // service). NOTE: any closing script tag inside must be written as <\/script>.
@@ -783,7 +784,10 @@ function buildDaily(checkins, route) {
   const keys = [...days.keys()].sort();
   const startKey = CONFIG.startDate || keys[0];
   const rows = [];
-  let prevSnap = null; // last on-route position of the previous day
+  // last on-route position of the previous day; seeding it at the
+  // trailhead means the first day's miles measure from Tuolumne even
+  // if the first check-in only comes mid-trail
+  let prevSnap = CONFIG.startAtMileZero ? { mi: route[0].mi, idx: 0 } : null;
 
   for (const k of keys) {
     const d = days.get(k);
@@ -988,6 +992,16 @@ function themeColor(name) {
 // check-ins fall back to straight segments.
 function trackLatLngs(route, checkins) {
   const out = [];
+  // start the traveled line at the trailhead when the first on-route
+  // check-in landed further along
+  if (CONFIG.startAtMileZero && route) {
+    const firstOn = checkins.find(c => c.s && c.s.offMi <= CONFIG.offRouteMi);
+    if (firstOn && firstOn.s.mi > 0.2) {
+      const b = firstOn.s.idx;
+      const stride = Math.max(1, Math.floor(b / 2000));
+      for (let i = 0; i < b; i += stride) out.push([route[i].lat, route[i].lon]);
+    }
+  }
   let prev = null;
   checkins.forEach(c => {
     if (prev && route && prev.s && c.s &&
