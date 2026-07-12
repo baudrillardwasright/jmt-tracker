@@ -59,7 +59,14 @@
     background: var(--card); color: var(--ink);
     font-family: "IBM Plex Mono", monospace; font-size: 12px;
   }
-  .leaflet-control-layers-expanded { padding: 8px 12px 8px 8px; }
+  .leaflet-control-layers-expanded { padding: 8px 24px 8px 8px; position: relative; }
+  .layers-close {
+    display: none; position: absolute; top: 1px; right: 5px;
+    font: 16px/20px "IBM Plex Mono", monospace; color: var(--faded);
+    text-decoration: none; padding: 0 3px;
+  }
+  .layers-close:hover { color: var(--ink); }
+  .leaflet-control-layers-expanded .layers-close { display: block; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; }
   section, #map, .profile, .stats { scroll-margin-top: 14px; }
@@ -1041,10 +1048,22 @@ function buildMap(route, checkins, wps) {
     maxZoom: 19,
     attribution: 'Map © OpenStreetMap contributors'
   });
-  L.control.layers(
+  const layerCtl = L.control.layers(
     { "Topo": topo, "Satellite": sat, "Street": street },
     null, { position: "topright" }
   ).addTo(map);
+  // small X inside the expanded picker to re-minimize it
+  const lcEl = layerCtl.getContainer();
+  const closeBtn = document.createElement("a");
+  closeBtn.className = "layers-close";
+  closeBtn.href = "#";
+  closeBtn.setAttribute("aria-label", "Close layer picker");
+  closeBtn.textContent = "\u00d7";
+  closeBtn.addEventListener("click", e => {
+    e.preventDefault(); e.stopPropagation();
+    layerCtl.collapse();
+  });
+  lcEl.appendChild(closeBtn);
 
   // OpenTopoMap is a free community service and occasionally slow or down;
   // after repeated tile failures, fall back to street tiles automatically
