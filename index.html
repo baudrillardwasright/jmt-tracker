@@ -51,10 +51,15 @@
     #map { background: #20261F; }
     .leaflet-tile { filter: brightness(0.82) saturate(0.9); }
   }
-  /* Leaflet popups follow the theme */
+  /* Leaflet popups and controls follow the theme */
   .leaflet-popup-content-wrapper, .leaflet-popup-tip {
     background: var(--card); color: var(--ink);
   }
+  .leaflet-control-layers {
+    background: var(--card); color: var(--ink);
+    font-family: "IBM Plex Mono", monospace; font-size: 12px;
+  }
+  .leaflet-control-layers-expanded { padding: 8px 12px 8px 8px; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; }
   section, #map, .profile, .stats { scroll-margin-top: 14px; }
@@ -1027,18 +1032,29 @@ function buildMap(route, checkins, wps) {
     maxZoom: 16,
     attribution: 'Map © OpenStreetMap contributors, SRTM · Tiles © OpenTopoMap (CC-BY-SA)'
   }).addTo(map);
+  const sat = L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+    maxZoom: 18,
+    attribution: 'Imagery © Esri, Maxar, Earthstar Geographics'
+  });
+  const street = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: 'Map © OpenStreetMap contributors'
+  });
+  L.control.layers(
+    { "Topo": topo, "Satellite": sat, "Street": street },
+    null, { position: "topright" }
+  ).addTo(map);
 
   // OpenTopoMap is a free community service and occasionally slow or down;
-  // after repeated tile failures, fall back to standard OSM tiles.
+  // after repeated tile failures, fall back to street tiles automatically
+  // (viewers can also switch layers by hand at any time).
   let tileErrors = 0, swapped = false;
   topo.on("tileerror", () => {
-    if (swapped || ++tileErrors < 4) return;
+    if (swapped || ++tileErrors < 4 || !map.hasLayer(topo)) return;
     swapped = true;
     map.removeLayer(topo);
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: 'Map © OpenStreetMap contributors'
-    }).addTo(map);
+    street.addTo(map);
   });
 
   let routeLine = null;
