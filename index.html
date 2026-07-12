@@ -1055,9 +1055,26 @@ function buildMap(route, checkins, wps) {
     maxZoom: 16,
     attribution: 'Imagery & topo © USGS The National Map'
   });
+  // rain radar overlay (RainViewer, free): latest frame at page load,
+  // off by default - viewers tick it on in the layer picker
+  const radar = L.layerGroup();
+  (async () => {
+    try {
+      const res = await fetch("https://api.rainviewer.com/public/weather-maps.json");
+      const d = await res.json();
+      const frames = d?.radar?.past;
+      if (frames?.length) {
+        const f = frames[frames.length - 1];
+        L.tileLayer(d.host + f.path + "/256/{z}/{x}/{y}/2/1_1.png",
+          { opacity: 0.65, attribution: "Radar © RainViewer" }).addTo(radar);
+      }
+    } catch (e) { console.warn("Radar overlay unavailable:", e); }
+  })();
+
   const layerCtl = L.control.layers(
     { "Topo": topo, "Satellite": sat, "Sat + Topo": hybrid, "Street": street },
-    null, { position: "topright" }
+    { "Rain radar": radar },
+    { position: "topright" }
   ).addTo(map);
   // small X inside the expanded picker to re-minimize it
   const lcEl = layerCtl.getContainer();
