@@ -1083,6 +1083,7 @@ function buildMap(route, checkins, wps) {
   // wildfire perimeters (NIFC/WFIGS public service), fetched for the
   // Sierra corridor around the route; off by default
   const fires = L.layerGroup();
+  let fireState = "loading"; // "ok" | "empty" | "error"
   (async () => {
     try {
       const url = "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/" +
@@ -1092,7 +1093,12 @@ function buildMap(route, checkins, wps) {
         "&outSR=4326&f=geojson";
       const res = await fetch(url);
       const gj = await res.json();
-      if (gj?.features?.length) {
+      if (gj?.error) {
+        fireState = "error";
+        console.warn("Wildfire service returned an error:", gj.error);
+      } else if (gj?.features?.length) {
+        fireState = "ok";
+        console.info("Wildfire layer: " + gj.features.length + " perimeter(s) in the Sierra corridor");
         L.geoJSON(gj, {
           style: { color: "#D93025", weight: 1.5, fillColor: "#D93025", fillOpacity: 0.22 },
           onEachFeature: (f, l) => {
@@ -1104,9 +1110,25 @@ function buildMap(route, checkins, wps) {
               `<br><span style="font-size:11px">NIFC current perimeter</span>`);
           }
         }).addTo(fires);
+      } else {
+        fireState = "empty";
+        console.info("Wildfire layer: no current perimeters in the Sierra corridor");
       }
-    } catch (e) { console.warn("Wildfire layer unavailable:", e); }
+    } catch (e) { fireState = "error"; console.warn("Wildfire layer unavailable:", e); }
   })();
+  // ticking the box always answers - fires shown, none to show, or failed
+  map.on("overlayadd", e => {
+    if (e.layer !== fires || fires.getLayers().length) return;
+    const msg = fireState === "error"
+      ? "Fire data couldn\u2019t be loaded right now."
+      : fireState === "loading"
+      ? "Fire data is still loading \u2014 untick and retick in a moment."
+      : "No mapped fire perimeters near the route right now.";
+    L.popup({ closeButton: true })
+      .setLatLng(map.getCenter())
+      .setContent('<span style="font-family:\'IBM Plex Mono\',monospace;font-size:12px">' + msg + "</span>")
+      .openOn(map);
+  });
 
   const layerCtl = L.control.layers(
     { "Topo": topo, "Satellite": sat, "Sat + Topo": hybrid, "Street": street },
