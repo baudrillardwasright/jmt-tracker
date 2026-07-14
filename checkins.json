@@ -5,5 +5,12 @@
     "lon": -90.07516,
     "type": "message",
     "text": "<html style=\"width:100%;font-family:arial, 'helvetica neue', helvetica, sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;padding:0;Margin:0;\"> <head> <meta charset=\"UTF-8\" /> <meta content=\"width=device-width, initial-scale=1\" name=\"viewport\" /> <meta name=\"x-apple-disable-message-reformatting\" /> <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" /> <meta content=\"telephone=no\" name=\"format-detection\" /> <!--[if (mso 16)]> <style type=\"text/css\"> a {text-decoration: none;} <"
+  },
+  {
+    "time": "2026-07-14T23:29:14.073Z",
+    "lat": 29.93288,
+    "lon": -90.07497,
+    "type": "message",
+    "text": "Check-in message from Dave Device: Dave IMEI: 301434061162620 Message: I'm OK. My location is 29.932875, -90.07497 Check-in sent at: 14 Jul 2026 23:28:47 (UTC) View on map"
   }
 ]
