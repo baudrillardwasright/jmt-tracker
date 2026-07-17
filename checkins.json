@@ -1,3 +1,9 @@
 [
-  
+  {
+    "time": "2026-07-17T15:30:18.052Z",
+    "lat": 37.87199,
+    "lon": -119.35003,
+    "type": "message",
+    "text": "Check-in message from Dave Device: Dave IMEI: 301434061162620 Message: I'm OK. My location is 37.87199, -119.35003 Check-in sent at: 17 Jul 2026 15:29:13 (UTC) View on map"
+  }
 ]
