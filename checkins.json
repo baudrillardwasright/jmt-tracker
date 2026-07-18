@@ -61,5 +61,12 @@
     "lon": -119.24883,
     "type": "message",
     "text": "Check-in message from Dave Device: Dave IMEI: 301434061162620 Message: I'm OK. My location is 37.76095, -119.24883 Check-in sent at: 18 Jul 2026 20:14:07 (UTC) View on map"
+  },
+  {
+    "time": "2026-07-18T21:23:12.704Z",
+    "lat": 37.7637,
+    "lon": -119.23712,
+    "type": "message",
+    "text": "Check-in message from Dave Device: Dave IMEI: 301434061162620 Message: I'm OK. My location is 37.7637, -119.23712 Check-in sent at: 18 Jul 2026 21:22:12 (UTC) View on map"
   }
 ]
