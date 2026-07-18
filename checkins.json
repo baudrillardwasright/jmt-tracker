@@ -26,5 +26,12 @@
     "lon": -119.26253,
     "type": "message",
     "text": "Check-in message from Dave Device: Dave IMEI: 301434061162620 Message: I'm OK. My location is 37.796875, -119.26253 Check-in sent at: 17 Jul 2026 22:58:12 (UTC) View on map"
+  },
+  {
+    "time": "2026-07-18T02:35:25.757Z",
+    "lat": 37.7969,
+    "lon": -119.2625,
+    "type": "message",
+    "text": "Made camp for the night at the foot of Donohue Pass. Tomorrow morning the first 4ish miles have 2600 ft of climb. Probably make an early night of it and rest up."
   }
 ]
