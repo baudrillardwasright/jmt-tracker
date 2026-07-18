@@ -40,5 +40,12 @@
     "lon": -119.26249,
     "type": "message",
     "text": "Today was great. This trail is incredible and so are the people. Ellie, if you’re reading this, thank you so much for the hat!! It’s keeping me warm tonight."
+  },
+  {
+    "time": "2026-07-18T15:14:34.523Z",
+    "lat": 37.79672,
+    "lon": -119.26241,
+    "type": "message",
+    "text": "Check-in message from Dave Device: Dave IMEI: 301434061162620 Message: I'm OK. My location is 37.796722, -119.26241 Check-in sent at: 18 Jul 2026 15:08:17 (UTC) View on map"
   }
 ]
