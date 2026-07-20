@@ -103,5 +103,12 @@
     "lon": -119.12636,
     "type": "message",
     "text": "Check-in message from Dave Device: Dave IMEI: 301434061162620 Message: I'm OK. My location is 37.782898, -119.12636 Check-in sent at: 20 Jul 2026 02:07:42 (UTC) View on map"
+  },
+  {
+    "time": "2026-07-20T02:09:15.112Z",
+    "lat": 37.7829,
+    "lon": -119.12635,
+    "type": "message",
+    "text": "Started experiencing altitude sickness last night (headache, lightheadedness, confusion, etc). Texted a doctor and got advice to descend and rest 24-48 hours."
   }
 ]
