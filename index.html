@@ -336,7 +336,7 @@
     <div class="stat"><div class="num" id="st-pace">—</div><div class="lbl">Mi / day</div></div>
     <div class="stat"><div class="num" id="st-gain">—</div><div class="lbl">Ft climbed</div></div>
     <div class="stat"><div class="num" id="st-last">—</div><div class="lbl">Last check-in</div></div>
-    <div class="stat"><div class="num" id="st-finish">—</div><div class="lbl">Proj. finish</div></div>
+    <div class="stat"><div class="num" id="st-offtrail">—</div><div class="lbl">Off-trail miles</div></div>
   </div>
   <div class="gear-line hidden" id="gear-line"></div>
 
@@ -567,9 +567,10 @@ function renderHighlights(rows, opts) {
   const fmtD = r => "D" + r.dayNum + " \u00b7 " +
     new Date(r.key + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
   const dash = "\u2014";
-  const withMiles = rows.filter(r => r.miles !== null);
+  const dayTotal = r => (r.miles || 0) + (r.offMi || 0);
+  const withMiles = rows.filter(r => r.miles !== null || r.offMi > 0);
   const longest = withMiles.length
-    ? withMiles.reduce((a, r) => r.miles > a.miles ? r : a) : null;
+    ? withMiles.reduce((a, r) => dayTotal(r) > dayTotal(a) ? r : a) : null;
   const withHours = rows.filter(r => r.hours !== null);
   const longestH = withHours.length
     ? withHours.reduce((a, r) => r.hours > a.hours ? r : a) : null;
@@ -578,8 +579,9 @@ function renderHighlights(rows, opts) {
     ? withGain.reduce((a, r) => r.gainFt > a.gainFt ? r : a) : null;
   const drop = withGain.length
     ? withGain.reduce((a, r) => r.lossFt > a.lossFt ? r : a) : null;
-  // rest days: hiking days under 2 mi, plus calendar days with no check-ins
-  const restRows = withMiles.filter(r => r.miles < 2).length;
+  // rest days: hiking days under 2 mi total (incl. off-trail), plus
+  // calendar days with no check-ins
+  const restRows = withMiles.filter(r => dayTotal(r) < 2).length;
   const span = rows[rows.length - 1].dayNum - rows[0].dayNum + 1;
   const rest = restRows + Math.max(0, span - rows.length);
   // passes: flagged waypoints at or behind the furthest position
@@ -607,7 +609,7 @@ function renderHighlights(rows, opts) {
     (sub ? `<div class="sub">${sub}</div>` : "") + `</div>`;
 
   let cells =
-    cell(longest ? longest.miles.toFixed(1) + " mi" : dash, "Longest day", longest ? fmtD(longest) : "") +
+    cell(longest ? dayTotal(longest).toFixed(1) + " mi" : dash, "Longest day", longest ? fmtD(longest) : "") +
     cell(longestH ? longestH.hours.toFixed(1) + " h" : dash, "Longest day (hours)", longestH ? fmtD(longestH) : "") +
     cell(climb ? "+" + Math.round(climb.gainFt).toLocaleString() + " ft" : dash, "Biggest climb", climb ? fmtD(climb) : "") +
     cell(drop ? "\u2212" + Math.round(drop.lossFt).toLocaleString() + " ft" : dash, "Biggest descent", drop ? fmtD(drop) : "") +
@@ -616,7 +618,11 @@ function renderHighlights(rows, opts) {
     cell(high ? ftTxt(high.ele) : dash, "Highest point", high ? escapeHtml(high.name) : "") +
     cell(hiCamp ? ftTxt(hiCamp.campEle) : dash, "Highest camp", hiCamp ? fmtD(hiCamp) : "") +
     cell(String(rest), "Rest days", "under 2 mi or no check-in") +
-    cell(days ? (doneMi / days).toFixed(1) + " mi" : dash, "Avg per day", "") +
+    cell((() => {
+      const act = rows.filter(r => dayTotal(r) >= 2);
+      const walked = rows.reduce((a, r) => a + dayTotal(r), 0);
+      return act.length ? (walked / act.length).toFixed(1) + " mi" : dash;
+    })(), "Avg per day", "hiking days only") +
     cell(hasEle && days ? "+" + Math.round(gainSoFar / days).toLocaleString() + " ft" : dash, "Avg climb per day", "");
   // pad to a full row so the grid has no holes
   const per = 3, count = 10;
@@ -847,7 +853,7 @@ async function loadWeather(lat, lon, eleMeters) {
 // Per calendar day: miles covered (previous day's last position → this
 // day's last position, along the route), gain/loss over that stretch,
 // and hours from the day's first to last check-in.
-function buildDaily(checkins, route) {
+function buildDaily(checkins, route, sides) {
   const days = new Map(); // key → { entries: [], snapped: [] }
   checkins.forEach(c => {
     const k = dayKey(c.date);
@@ -856,6 +862,39 @@ function buildDaily(checkins, route) {
     d.entries.push(c);
     if (c.s && !c.side && c.s.offMi <= CONFIG.offRouteMi) d.snapped.push(c.s);
   });
+
+  // off-trail (side-trail) miles per day: for each consecutive pair of
+  // check-ins, the along-side-trail portion of the leg, attributed to
+  // the day of the leg's later check-in
+  const sMi = (t, i) => sides[t].pts[i].mi;
+  const offByDay = new Map();
+  if (sides && sides.length) {
+    const onMain = c => c.s && !c.side && c.s.offMi <= CONFIG.offRouteMi;
+    let prev = null;
+    checkins.forEach(c => {
+      if (prev) {
+        let off = 0;
+        if (prev.side && c.side && prev.side.t === c.side.t) {
+          off = Math.abs(sMi(c.side.t, c.side.idx) - sMi(prev.side.t, prev.side.idx));
+        } else if (onMain(prev) && c.side) {
+          const J = sides[c.side.t].junction;
+          off = Math.abs(sMi(c.side.t, c.side.idx) - sMi(c.side.t, J.sideIdx));
+        } else if (prev.side && onMain(c)) {
+          const J = sides[prev.side.t].junction;
+          off = Math.abs(sMi(prev.side.t, prev.side.idx) - sMi(prev.side.t, J.sideIdx));
+        } else if (prev.side && c.side) { // different side trails
+          const J1 = sides[prev.side.t].junction, J2 = sides[c.side.t].junction;
+          off = Math.abs(sMi(prev.side.t, prev.side.idx) - sMi(prev.side.t, J1.sideIdx)) +
+                Math.abs(sMi(c.side.t, c.side.idx) - sMi(c.side.t, J2.sideIdx));
+        }
+        if (off > 0.05) {
+          const k = dayKey(c.date);
+          offByDay.set(k, (offByDay.get(k) || 0) + off);
+        }
+      }
+      prev = c;
+    });
+  }
 
   const keys = [...days.keys()].sort();
   const startKey = CONFIG.startDate || keys[0];
@@ -883,7 +922,8 @@ function buildDaily(checkins, route) {
       prevSnap = to;
     }
     const dayNum = Math.round((new Date(k) - new Date(startKey)) / 864e5) + 1;
-    rows.push({ key: k, dayNum, miles, gainFt, lossFt, hours, campEle });
+    rows.push({ key: k, dayNum, miles, gainFt, lossFt, hours, campEle,
+      offMi: offByDay.get(k) || 0 });
   }
   return rows;
 }
@@ -897,6 +937,7 @@ function renderDayHead(k, dayNum, row) {
   if (row) {
     const parts = [];
     if (row.miles !== null) parts.push(row.miles.toFixed(1) + " mi");
+    if (row.offMi > 0.05) parts.push(row.offMi.toFixed(1) + " mi off-trail");
     if (row.gainFt !== null) parts.push(
       '<span class="up">+' + Math.round(row.gainFt).toLocaleString() + '</span>/' +
       '<span class="down">\u2212' + Math.round(row.lossFt).toLocaleString() + "</span> ft");
@@ -947,7 +988,7 @@ function renderLog(checkins, route, sides, journals) {
 
   // daily stats, when a route is available to measure against
   const rowByKey = new Map();
-  if (route) buildDaily(checkins, route).forEach(r => rowByKey.set(r.key, r));
+  if (route) buildDaily(checkins, route, sides).forEach(r => rowByKey.set(r.key, r));
 
   // group check-ins by trail-timezone day (journal files merge in for
   // display; they never affect daily stats)
@@ -1373,7 +1414,11 @@ async function addPhotoPins(map, route, photos) {
         }
       } catch (e) { /* no EXIF in this file */ }
     }
-    if (!isFinite(lat) || !isFinite(lon)) continue;
+    if (!isFinite(lat) || !isFinite(lon)) {
+      console.info("photo has no GPS, so no map pin: " + p.file +
+        " (add \"lat\"/\"lon\" to its photos.json entry to pin it by hand)");
+      continue;
+    }
     let miTxt = "";
     if (route) {
       const s = snap(route, lat, lon);
@@ -1509,8 +1554,19 @@ function escapeHtml(s) {
 
     if (route) {
       $("st-miles").textContent = doneMi.toFixed(1);
-      $("st-pace").textContent = pace.toFixed(1);
       $("pct").textContent = Math.min(100, Math.round((doneMi / totalMi) * 100));
+
+      // Mi/day over hiking days only (rest days excluded); day totals
+      // include off-trail miles
+      const rows = buildDaily(checkins, route, sides);
+      const dayTotal = r => (r.miles || 0) + (r.offMi || 0);
+      const active = rows.filter(r => dayTotal(r) >= 2);
+      const walked = rows.reduce((a, r) => a + dayTotal(r), 0);
+      $("st-pace").textContent = active.length ? (walked / active.length).toFixed(1) : "\u2014";
+
+      // Off-trail miles walked (side trails, out and back)
+      $("st-offtrail").textContent =
+        rows.reduce((a, r) => a + (r.offMi || 0), 0).toFixed(1);
 
       // Total climbing so far, along the route up to the furthest point
       if (doneMi > 0 && route.hasEle) {
@@ -1518,15 +1574,6 @@ function escapeHtml(s) {
         while (doneIdx < route.length - 1 && route[doneIdx].mi < doneMi) doneIdx++;
         const gl = routeGainLoss(route, 0, doneIdx);
         $("st-gain").textContent = Math.round(gl.gainFt).toLocaleString();
-      }
-
-      // Projected finish from actual pace so far
-      if (pace > 0 && doneMi < totalMi) {
-        const finish = new Date(Date.now() + ((totalMi - doneMi) / pace) * 864e5);
-        $("st-finish").textContent =
-          finish.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-      } else if (doneMi >= totalMi) {
-        $("st-finish").textContent = "Done!";
       }
     }
   }
@@ -1547,7 +1594,7 @@ function escapeHtml(s) {
       checkins.length ? relTime(checkins[checkins.length - 1].date) : "");
     if (wps.length) renderNextUp(wps, doneMi, pace);
     if (checkins.length) {
-      renderHighlights(buildDaily(checkins, route),
+      renderHighlights(buildDaily(checkins, route, sides),
         { doneMi, days, gainSoFar, hasEle: route.hasEle, route, wps });
     }
   } else {
