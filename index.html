@@ -331,8 +331,8 @@
   <div class="map-note"><span style="color:var(--routeline)">Dashed line</span>: planned route · Solid line: traveled · <span style="color:var(--contour)">▲</span> camps · <span style="color:var(--lake)">◆</span> photos · <span style="color:var(--rust)">●</span> last known position</div>
 
   <div class="stats" id="stats-strip">
-    <div class="stat"><div class="num" id="st-miles">—</div><div class="lbl">Trail miles</div></div>
-    <div class="stat"><div class="num" id="st-days">—</div><div class="lbl">Days on trail</div></div>
+    <div class="stat"><div class="num" id="st-miles">—</div><div class="lbl">Total miles</div></div>
+    <div class="stat"><div class="num" id="st-days">—</div><div class="lbl">Days since starting</div></div>
     <div class="stat"><div class="num" id="st-pace">—</div><div class="lbl">Mi / day</div></div>
     <div class="stat"><div class="num" id="st-gain">—</div><div class="lbl">Ft climbed</div></div>
     <div class="stat"><div class="num" id="st-last">—</div><div class="lbl">Last check-in</div></div>
@@ -394,7 +394,10 @@ const CONFIG = {
   // to route the traveled line when check-ins land on them. Excursion
   // miles don't count toward trail progress (same rule as VVR).
   sideTrails: [
-    { name: "Rush Creek Trail", file: "rush-creek.gpx" }
+    { name: "Rush Creek Trail", file: "rush-creek.gpx" },
+    { name: "Goodale Pass Trail", file: "goodale-pass.gpx" },
+    { name: "Bear Creek Trail", file: "bear-creek.gpx" },
+    { name: "Bear Ridge Trail", file: "bear-ridge.gpx" }
   ],
   gearUrl:     "",                    // gear list share link; blank = hidden
   // Full embedded gear list (paste the embed snippet from your gear-list
@@ -725,6 +728,15 @@ function snap(route, lat, lon) {
 // route doubles back on itself (the Onion Valley resupply out-and-back):
 // plain nearest-point snapping would match a return-leg position to the
 // outbound leg and freeze progress. Attaches the result as c.s.
+// A check-in reached by road rather than on foot: say so in the message
+// ("hitched", "transit", "shuttle", "by bus"...) or add "transit": true
+// to the entry in checkins.json. The leg into it credits no walking
+// miles and the traveled line draws a straight connector.
+function isTransit(c) {
+  return c.transit === true || !!(c.text &&
+    /\b(transit|hitch\w*|shuttle|drove|bussed)\b|\bby (bus|car|road|van)\b/i.test(c.text));
+}
+
 function snapAll(route, checkins, sides) {
   let floorIdx = 0;
   checkins.forEach(c => {
@@ -854,76 +866,84 @@ async function loadWeather(lat, lon, eleMeters) {
 // day's last position, along the route), gain/loss over that stretch,
 // and hours from the day's first to last check-in.
 function buildDaily(checkins, route, sides) {
-  const days = new Map(); // key → { entries: [], snapped: [] }
+  // Per-day walking totals, computed pairwise over consecutive check-ins
+  // and attributed to the day of each leg's later check-in:
+  //   main->main       main-route miles between the two positions
+  //   main->side       main miles to the junction + side miles beyond it
+  //   side->side same  side miles between positions
+  //   side->side diff  each trail's miles toward its FAR end (an
+  //                    alternate: out one trail, back another - the
+  //                    bypassed main-route section is NOT walked)
+  // Gain/loss accumulates over the main-route spans actually walked.
+  const days = new Map();
+  const get = k => {
+    if (!days.has(k)) days.set(k,
+      { entries: [], snapped: [], mainMi: 0, offMi: 0, gFt: 0, lFt: 0, walked: false });
+    return days.get(k);
+  };
   checkins.forEach(c => {
-    const k = dayKey(c.date);
-    if (!days.has(k)) days.set(k, { entries: [], snapped: [] });
-    const d = days.get(k);
+    const d = get(dayKey(c.date));
     d.entries.push(c);
     if (c.s && !c.side && c.s.offMi <= CONFIG.offRouteMi) d.snapped.push(c.s);
   });
 
-  // off-trail (side-trail) miles per day: for each consecutive pair of
-  // check-ins, the along-side-trail portion of the leg, attributed to
-  // the day of the leg's later check-in
+  const onMain = c => c.s && !c.side && c.s.offMi <= CONFIG.offRouteMi;
   const sMi = (t, i) => sides[t].pts[i].mi;
-  const offByDay = new Map();
-  if (sides && sides.length) {
-    const onMain = c => c.s && !c.side && c.s.offMi <= CONFIG.offRouteMi;
-    let prev = null;
-    checkins.forEach(c => {
-      if (prev) {
-        let off = 0;
-        if (prev.side && c.side && prev.side.t === c.side.t) {
-          off = Math.abs(sMi(c.side.t, c.side.idx) - sMi(prev.side.t, prev.side.idx));
-        } else if (onMain(prev) && c.side) {
-          const J = sides[c.side.t].junction;
-          off = Math.abs(sMi(c.side.t, c.side.idx) - sMi(c.side.t, J.sideIdx));
-        } else if (prev.side && onMain(c)) {
-          const J = sides[prev.side.t].junction;
-          off = Math.abs(sMi(prev.side.t, prev.side.idx) - sMi(prev.side.t, J.sideIdx));
-        } else if (prev.side && c.side) { // different side trails
-          const J1 = sides[prev.side.t].junction, J2 = sides[c.side.t].junction;
-          off = Math.abs(sMi(prev.side.t, prev.side.idx) - sMi(prev.side.t, J1.sideIdx)) +
-                Math.abs(sMi(c.side.t, c.side.idx) - sMi(c.side.t, J2.sideIdx));
-        }
-        if (off > 0.05) {
-          const k = dayKey(c.date);
-          offByDay.set(k, (offByDay.get(k) || 0) + off);
-        }
-      }
-      prev = c;
-    });
+  const farIdx = t => sides[t].junction.sideIdx < sides[t].pts.length / 2
+    ? sides[t].pts.length - 1 : 0;
+  const addMain = (k, i0, i1) => {
+    const d = get(k), a = Math.min(i0, i1), b = Math.max(i0, i1);
+    const mi = route[b].mi - route[a].mi;
+    if (mi > 0.02) {
+      d.mainMi += mi; d.walked = true;
+      if (route.hasEle) { const g = routeGainLoss(route, a, b); d.gFt += g.gainFt; d.lFt += g.lossFt; }
+    }
+  };
+  const addOff = (k, mi) => { if (mi > 0.02) { const d = get(k); d.offMi += mi; d.walked = true; } };
+
+  const firstOn = checkins.find(onMain);
+  if (CONFIG.startAtMileZero && firstOn && firstOn.s.mi > 0.2) {
+    addMain(dayKey(firstOn.date), 0, firstOn.s.idx);
   }
+  let prev = null;
+  checkins.forEach(c => {
+    if (prev && !isTransit(c)) {
+      const k = dayKey(c.date);
+      if (onMain(prev) && onMain(c)) {
+        addMain(k, prev.s.idx, c.s.idx);
+      } else if (onMain(prev) && c.side) {
+        const J = sides[c.side.t].junction;
+        addMain(k, prev.s.idx, J.mainIdx);
+        addOff(k, Math.abs(sMi(c.side.t, c.side.idx) - sMi(c.side.t, J.sideIdx)));
+      } else if (prev.side && onMain(c)) {
+        const J = sides[prev.side.t].junction;
+        addOff(k, Math.abs(sMi(prev.side.t, prev.side.idx) - sMi(prev.side.t, J.sideIdx)));
+        addMain(k, J.mainIdx, c.s.idx);
+      } else if (prev.side && c.side && prev.side.t === c.side.t) {
+        addOff(k, Math.abs(sMi(c.side.t, c.side.idx) - sMi(prev.side.t, prev.side.idx)));
+      } else if (prev.side && c.side) {
+        addOff(k, Math.abs(sMi(prev.side.t, prev.side.idx) - sMi(prev.side.t, farIdx(prev.side.t)))
+              + Math.abs(sMi(c.side.t, farIdx(c.side.t)) - sMi(c.side.t, c.side.idx)));
+      }
+    }
+    prev = c;
+  });
 
   const keys = [...days.keys()].sort();
   const startKey = CONFIG.startDate || keys[0];
   const rows = [];
-  // last on-route position of the previous day; seeding it at the
-  // trailhead means the first day's miles measure from Tuolumne even
-  // if the first check-in only comes mid-trail
-  let prevSnap = CONFIG.startAtMileZero ? { mi: route[0].mi, idx: 0 } : null;
-
   for (const k of keys) {
     const d = days.get(k);
     const first = d.entries[0].date, last = d.entries[d.entries.length - 1].date;
     const hours = d.entries.length >= 2 ? (last - first) / 36e5 : null;
-
-    let miles = null, gainFt = null, lossFt = null, campEle = null;
-    if (d.snapped.length) {
-      const from = prevSnap || d.snapped[0];
-      const to = d.snapped[d.snapped.length - 1];
-      miles = Math.abs(to.mi - from.mi);
-      if (route.hasEle) {
-        const gl = routeGainLoss(route, from.idx, to.idx);
-        gainFt = gl.gainFt; lossFt = gl.lossFt;
-      }
-      campEle = route.hasEle ? route[to.idx].ele : null;
-      prevSnap = to;
-    }
+    const measured = d.walked || d.snapped.length > 0;
+    const miles = measured ? d.mainMi : null;
+    const gainFt = measured && route.hasEle ? d.gFt : null;
+    const lossFt = measured && route.hasEle ? d.lFt : null;
+    const lastSnap = d.snapped[d.snapped.length - 1];
+    const campEle = lastSnap && route.hasEle ? route[lastSnap.idx].ele : null;
     const dayNum = Math.round((new Date(k) - new Date(startKey)) / 864e5) + 1;
-    rows.push({ key: k, dayNum, miles, gainFt, lossFt, hours, campEle,
-      offMi: offByDay.get(k) || 0 });
+    rows.push({ key: k, dayNum, miles, gainFt, lossFt, hours, campEle, offMi: d.offMi });
   }
   return rows;
 }
@@ -1016,8 +1036,9 @@ function renderLog(checkins, route, sides, journals) {
       isFirstMsg = false;
       let miLine = "";
       if (route && c.s) {
-        const miTxt = c.side ? escapeHtml((sides[c.side.t] || {}).name || "side trail")
+        let miTxt = c.side ? escapeHtml((sides[c.side.t] || {}).name || "side trail")
           : (c.s.offMi <= CONFIG.offRouteMi ? `mi ${c.s.mi.toFixed(1)}` : "off route");
+        if (isTransit(c)) miTxt += " \u00b7 transit";
         miLine = `<br><span class="mi">${miTxt}</span>`;
       }
       div.innerHTML =
@@ -1164,7 +1185,7 @@ function trackLatLngs(route, checkins, sides) {
 
   let prev = null;
   checkins.forEach(c => {
-    if (prev && route) {
+    if (prev && route && !isTransit(c)) {
       const a = kind(prev), b = kind(c);
       if (a.type === "main" && b.type === "main") {
         pushRange(route, a.idx, b.idx);
@@ -1178,11 +1199,15 @@ function trackLatLngs(route, checkins, sides) {
         const J = sides[a.t].junction;
         pushRange(sides[a.t].pts, a.idx, J.sideIdx);
         pushRange(route, J.mainIdx, b.idx);
-      } else if (a.type === "side" && b.type === "side") { // different side trails
-        const J1 = sides[a.t].junction, J2 = sides[b.t].junction;
-        pushRange(sides[a.t].pts, a.idx, J1.sideIdx);
-        pushRange(route, J1.mainIdx, J2.mainIdx);
-        pushRange(sides[b.t].pts, J2.sideIdx, b.idx);
+      } else if (a.type === "side" && b.type === "side") {
+        // different side trails = an alternate: continue out trail A's far
+        // end, straight connector across the gap, in from trail B's far end
+        const farA = sides[a.t].junction.sideIdx < sides[a.t].pts.length / 2
+          ? sides[a.t].pts.length - 1 : 0;
+        const farB = sides[b.t].junction.sideIdx < sides[b.t].pts.length / 2
+          ? sides[b.t].pts.length - 1 : 0;
+        pushRange(sides[a.t].pts, a.idx, farA);
+        pushRange(sides[b.t].pts, farB, b.idx);
       }
       // any "off" leg falls through to a straight segment
     }
@@ -1553,20 +1578,22 @@ function escapeHtml(s) {
     loadWeather(last.lat, last.lon, lastEle);
 
     if (route) {
-      $("st-miles").textContent = doneMi.toFixed(1);
+      const rows = buildDaily(checkins, route, sides);
+      const dayTotal = r => (r.miles || 0) + (r.offMi || 0);
+      const offTotal = rows.reduce((a, r) => a + (r.offMi || 0), 0);
+
+      // Total miles walked: trail progress plus off-trail (side trails
+      // and alternates). The header's "of 212" figure stays trail-only.
+      $("st-miles").textContent = (doneMi + offTotal).toFixed(1);
       $("pct").textContent = Math.min(100, Math.round((doneMi / totalMi) * 100));
 
       // Mi/day over hiking days only (rest days excluded); day totals
       // include off-trail miles
-      const rows = buildDaily(checkins, route, sides);
-      const dayTotal = r => (r.miles || 0) + (r.offMi || 0);
       const active = rows.filter(r => dayTotal(r) >= 2);
       const walked = rows.reduce((a, r) => a + dayTotal(r), 0);
       $("st-pace").textContent = active.length ? (walked / active.length).toFixed(1) : "\u2014";
 
-      // Off-trail miles walked (side trails, out and back)
-      $("st-offtrail").textContent =
-        rows.reduce((a, r) => a + (r.offMi || 0), 0).toFixed(1);
+      $("st-offtrail").textContent = offTotal.toFixed(1);
 
       // Total climbing so far, along the route up to the furthest point
       if (doneMi > 0 && route.hasEle) {
