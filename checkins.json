@@ -123,6 +123,7 @@
     "lat": 37.64476,
     "lon": -118.96601,
     "type": "message",
-      "text": "  (update loading) "
+      "text": " Bussed to Mammoth to recuperate "
+      "transit": true
   }
 ]
