@@ -1268,6 +1268,7 @@ function buildMap(route, checkins, wps, sides) {
   // Sierra corridor around the route; off by default
   const fires = L.layerGroup();
   let fireState = "loading"; // "ok" | "empty" | "error"
+  const perimNames = new Set();
   (async () => {
     try {
       const url = "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/" +
@@ -1288,6 +1289,7 @@ function buildMap(route, checkins, wps, sides) {
           onEachFeature: (f, l) => {
             const p = f.properties || {};
             const name = p.poly_IncidentName || p.attr_IncidentName || p.IncidentName || "Wildfire";
+            perimNames.add(String(name).toLowerCase());
             const acres = p.poly_GISAcres || p.attr_IncidentSize || p.GISAcres;
             l.bindPopup(`<strong>${escapeHtml(String(name))}</strong>` +
               (acres ? `<br>${Math.round(acres).toLocaleString()} acres` : "") +
@@ -1298,7 +1300,51 @@ function buildMap(route, checkins, wps, sides) {
         fireState = "empty";
         console.info("Wildfire layer: no current perimeters in the Sierra corridor");
       }
-    } catch (e) { fireState = "error"; console.warn("Wildfire layer unavailable:", e); }
+    } catch (e) { fireState = "error"; console.warn("Wildfire perimeters unavailable:", e); }
+
+    // Incident POINTS: new or unmapped fires often have no perimeter
+    // polygon for days but appear immediately as an incident location.
+    // Drawn as markers; skipped when a same-named perimeter is shown.
+    try {
+      const purl = "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/" +
+        "WFIGS_Incident_Locations_Current/FeatureServer/0/query" +
+        "?where=1%3D1&outFields=*&geometry=-120.4,36.1,-117.6,38.3" +
+        "&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects" +
+        "&outSR=4326&f=geojson";
+      const pres = await fetch(purl);
+      const pgj = await pres.json();
+      if (!pgj?.error && pgj?.features?.length) {
+        let added = 0;
+        pgj.features.forEach(f => {
+          const p = f.properties || {};
+          const name = String(p.attr_IncidentName || p.IncidentName || "Wildfire");
+          if (perimNames.has(name.toLowerCase())) return;
+          const [lon, lat] = f.geometry?.coordinates || [];
+          if (!isFinite(lat) || !isFinite(lon)) return;
+          const acres = p.attr_DailyAcres || p.attr_CalculatedAcres || p.DailyAcres;
+          const pct = p.attr_PercentContained;
+          const disc = p.attr_FireDiscoveryDateTime;
+          L.circleMarker([lat, lon], {
+            radius: 7, color: "#B71C1C", weight: 2,
+            fillColor: "#FF6D00", fillOpacity: 0.85
+          }).bindPopup(`<strong>${escapeHtml(name)} Fire</strong>` +
+            (acres ? `<br>${Math.round(acres).toLocaleString()} acres` : "") +
+            (isFinite(pct) ? `<br>${Math.round(pct)}% contained` : "") +
+            (disc ? `<br>discovered ${new Date(disc).toLocaleDateString(undefined,
+              { month: "short", day: "numeric" })}` : "") +
+            `<br><span style="font-size:11px">NIFC incident location (no mapped perimeter yet)</span>`
+          ).addTo(fires);
+          added++;
+        });
+        if (added) {
+          fireState = "ok";
+          console.info("Wildfire layer: " + added + " incident point(s) without perimeters");
+        }
+      }
+    } catch (e) {
+      if (fireState !== "ok") fireState = "error";
+      console.warn("Wildfire incident points unavailable:", e);
+    }
   })();
   // ticking the box always answers - fires shown, none to show, or failed
   map.on("overlayadd", e => {
@@ -1307,7 +1353,7 @@ function buildMap(route, checkins, wps, sides) {
       ? "Fire data couldn\u2019t be loaded right now."
       : fireState === "loading"
       ? "Fire data is still loading \u2014 untick and retick in a moment."
-      : "No mapped fire perimeters near the route right now.";
+      : "No mapped fires or incidents near the route right now.";
     L.popup({ closeButton: true })
       .setLatLng(map.getCenter())
       .setContent('<span style="font-family:\'IBM Plex Mono\',monospace;font-size:12px">' + msg + "</span>")
