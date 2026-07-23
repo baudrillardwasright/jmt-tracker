@@ -338,7 +338,7 @@
     <div class="stat"><div class="num" id="st-pace">—</div><div class="lbl">Mi / day</div></div>
     <div class="stat"><div class="num" id="st-gain">—</div><div class="lbl">Ft climbed</div></div>
     <div class="stat"><div class="num" id="st-last">—</div><div class="lbl">Last check-in</div></div>
-    <div class="stat"><div class="num" id="st-offtrail">—</div><div class="lbl">Off-trail miles</div></div>
+    <div class="stat"><div class="num" id="st-offtrail">—</div><div class="lbl">Side trail miles</div></div>
   </div>
   <div class="gear-line hidden" id="gear-line"></div>
 
@@ -959,7 +959,7 @@ function renderDayHead(k, dayNum, row) {
   if (row) {
     const parts = [];
     if (row.miles !== null) parts.push(row.miles.toFixed(1) + " mi");
-    if (row.offMi > 0.05) parts.push(row.offMi.toFixed(1) + " mi off-trail");
+    if (row.offMi > 0.05) parts.push(row.offMi.toFixed(1) + " mi side trail");
     if (row.gainFt !== null) parts.push(
       '<span class="up">+' + Math.round(row.gainFt).toLocaleString() + '</span>/' +
       '<span class="down">\u2212' + Math.round(row.lossFt).toLocaleString() + "</span> ft");
