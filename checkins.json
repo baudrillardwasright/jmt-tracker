@@ -125,5 +125,12 @@
     "type": "message",
     "text": " Bussed to Mammoth to recuperate ",
     "transit": true
+  },
+  {
+    "time": "2026-07-23T18:55:22.516Z",
+    "lat": 37.61531,
+    "lon": -119.07517,
+    "type": "message",
+    "text": "Took the shuttle to red’s meadow this morning and grabbed my resupply! Onward!"
   }
 ]
