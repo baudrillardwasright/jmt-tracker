@@ -132,5 +132,12 @@
     "lon": -119.07517,
     "type": "message",
     "text": "Took the shuttle to red’s meadow this morning and grabbed my resupply! Onward!"
+  },
+  {
+    "time": "2026-07-23T18:57:13.596Z",
+    "lat": 37.61503,
+    "lon": -119.07484,
+    "type": "message",
+    "text": "Check-in message from Dave\n\nDevice: Dave\n\nIMEI: 301434061162620\n\nMessage: I'm OK. My location is 37.615025, -119.074844\n\nCheck-in sent at: 23 Jul 2026 18:56:23 (UTC)\n\nView on map"
   }
 ]
