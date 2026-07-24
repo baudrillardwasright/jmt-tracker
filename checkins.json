@@ -167,5 +167,12 @@
     "lon": -119.03447,
     "type": "message",
     "text": "bit of a strugglefest; lots of exposed climbing. Tomorrow is a conservative itinerary - slightly more mileage and about the same amount of climb, but I’ll have all day."
+  },
+  {
+    "time": "2026-07-24T15:47:53.956Z",
+    "lat": 37.55542,
+    "lon": -119.03099,
+    "type": "message",
+    "text": "Check-in message from Dave\n\nDevice: Dave\n\nIMEI: 301434061162620\n\nMessage: I'm OK. My location is 37.555424, -119.03099\n\nCheck-in sent at: 24 Jul 2026 15:41:45 (UTC)\n\nView on map"
   }
 ]
