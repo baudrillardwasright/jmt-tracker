@@ -195,5 +195,12 @@
     "lon": -119.36652,
     "type": "message",
     "text": "Check-in message from Dave\n\nDevice: Dave\n\nIMEI: 301434061162620\n\nMessage: I'm OK. My location is 37.870358, -119.36652\n\nCheck-in sent at: 26 Jul 2026 17:55:06 (UTC)\n\nView on map"
+  },
+  {
+    "time": "2026-07-26T21:05:08.062Z",
+    "lat": 37.8443,
+    "lon": -119.42195,
+    "type": "message",
+    "text": "Check-in message from Dave\n\nDevice: Dave\n\nIMEI: 301434061162620\n\nMessage: I'm OK. My location is 37.844303, -119.42195\n\nCheck-in sent at: 26 Jul 2026 21:04:34 (UTC)\n\nView on map"
   }
 ]
